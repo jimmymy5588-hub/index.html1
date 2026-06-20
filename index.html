@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Buku Kas — Dashboard Budgeting</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght=500;600;700&family=JetBrains+Mono:wght=400;500;600;700&family=Inter:wght=400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <style>
   :root{
@@ -70,6 +70,9 @@
 
   .month-nav{ display:flex; align-items:center; gap:4px; background: var(--surface); border:1px solid var(--border); border-radius: 999px; padding: 6px 16px; }
   .month-nav .month-label{ font-family: var(--font-mono); font-size: 13px; font-weight:600; min-width: 132px; text-align:center; letter-spacing: 0.01em; }
+  .month-nav button { background: none; border: none; color: var(--text); font-size: 20px; font-weight: bold; cursor: pointer; padding: 0 8px; display: flex; align-items: center; justify-content: center; }
+  .month-nav button:hover { color: var(--accent); }
+  .month-nav button:disabled { opacity: 0.3; cursor: not-allowed; }
 
   .topbar-actions{ display:flex; align-items:center; gap:8px; }
 
@@ -260,7 +263,9 @@
       </div>
     </div>
     <div class="month-nav">
+      <button id="prevMonth" aria-label="Bulan sebelumnya">‹</button>
       <span class="month-label" id="monthLabel">—</span>
+      <button id="nextMonth" aria-label="Bulan berikutnya">›</button>
     </div>
     <div class="topbar-actions">
       <button class="icon-circle-btn" id="themeToggleBtn" title="Ganti tema">🌙</button>
@@ -691,12 +696,26 @@
     document.getElementById('themeToggleBtn').textContent = (t === 'light') ? '🌙' : '☀️';
   }
 
+  function updateMonthNavButtons() {
+    const prevBtn = document.getElementById('prevMonth');
+    const y = currentView.getFullYear();
+    const m = currentView.getMonth();
+    
+    // Mencegah tombol mundur ke bawah Juli 2026 (Tahun < 2026 atau Tahun=2026 dan Bulan < Juni yaitu indeks < 6)
+    if (y < 2026 || (y === 2026 && m <= 6)) {
+      prevBtn.disabled = true;
+    } else {
+      prevBtn.disabled = false;
+    }
+  }
+
   function renderAll(){
     processRecurringForMonth(currentView);
 
     const mLabel = `${MONTHS_ID[currentView.getMonth()]} ${currentView.getFullYear()}`;
     document.getElementById('monthLabel').textContent = mLabel;
     document.getElementById('resetMonthName').textContent = mLabel;
+    updateMonthNavButtons();
 
     const currentTx = txInCurrentMonth();
     let inc = 0, exp = 0;
@@ -877,7 +896,7 @@
       const d = new Date(currentView);
       d.setMonth(d.getMonth() - i);
       
-      // Filter mutlak agar bar grafik komparasi tidak menampilkan bulan di bawah Juli 2026
+      // Mencegah grafik menampilkan bulan di bawah Juli 2026
       if (d.getFullYear() < 2026 || (d.getFullYear() === 2026 && d.getMonth() < 6)) {
         continue;
       }
@@ -1232,346 +1251,3 @@
     }
 
     state.recurring.forEach(rc => {
-      const row = document.createElement('div');
-      row.className = 'recurring-row';
-      const col = catColor(rc.category);
-      const startD = new Date(rc.startDate);
-      const tgl = startD.getDate();
-
-      row.innerHTML = `
-        <div class="rc-dot" style="background:${rc.type==='income'?'var(--income)':'var(--expense)'}"></div>
-        <div class="rc-info">
-          <div class="rc-name">${rc.note || rc.category}</div>
-          <div class="rc-sub">${rc.category} • Tiap tanggal ${tgl}</div>
-        </div>
-        <div class="rc-amt ${rc.type}" style="margin-right:10px;">${fmtRp(rc.amount)}</div>
-        <button class="icon-btn danger delete-rc-btn" data-id="${rc.id}">✕</button>
-      `;
-      listEl.appendChild(row);
-    });
-
-    document.querySelectorAll('.delete-rc-btn').forEach(b => {
-      b.addEventListener('click', async (e)=>{
-        const id = e.target.getAttribute('data-id');
-        if(confirm('Hentikan pencatatan otomatis transaksi berulang ini untuk bulan-bulan ke depan?')){
-          state.recurring = state.recurring.filter(x => x.id !== id);
-          state.transactions = state.transactions.filter(t => t.recurringId !== id);
-          await saveMeta();
-          await saveData();
-          renderRecurringList();
-          renderAll();
-          showToast('Transaksi berulang dihentikan');
-        }
-      });
-    });
-  }
-
-  function wireEvents(){
-    // Event handler klik prevMonth / nextMonth dihapus untuk menonaktifkan navigasi
-
-    document.getElementById('themeToggleBtn').addEventListener('click', ()=>{
-      const next = loadTheme() === 'light' ? 'dark' : 'light';
-      applyTheme(next);
-      saveTheme(next);
-      renderAll();
-    });
-
-    document.getElementById('addTxBtn').addEventListener('click', ()=> openTxModal());
-    document.getElementById('closeTxModal').addEventListener('click', closeTxModal);
-    document.getElementById('cancelTxBtn').addEventListener('click', closeTxModal);
-
-    document.getElementById('typeIncomeBtn').addEventListener('click', ()=> setTxType('income'));
-    document.getElementById('typeExpenseBtn').addEventListener('click', ()=> setTxType('expense'));
-
-    document.getElementById('saveTxBtn').addEventListener('click', async ()=>{
-      const date = document.getElementById('txDate').value;
-      const category = document.getElementById('txCategory').value;
-      const amount = parseInt(document.getElementById('txAmount').value, 10);
-      const note = document.getElementById('txNote').value.trim();
-      const isRecurring = document.getElementById('txRecurring').checked;
-
-      if(!date || !category || isNaN(amount) || amount <= 0){
-        alert('Mohon isi tanggal, kategori, dan jumlah dana dengan benar.');
-        return;
-      }
-
-      // Validasi tambahan saat menyimpan agar tidak bisa menembus batas bawah Juli 2026
-      const checkD = new Date(date);
-      if (checkD.getFullYear() < 2026 || (checkD.getFullYear() === 2026 && checkD.getMonth() < 6)) {
-        alert('Gagal menyimpan! Tanggal transaksi tidak boleh di bawah bulan Juli 2026.');
-        return;
-      }
-
-      if(editingTxId){
-        const idx = state.transactions.findIndex(t => t.id === editingTxId);
-        if(idx !== -1){
-          state.transactions[idx].date = date;
-          state.transactions[idx].category = category;
-          state.transactions[idx].amount = amount;
-          state.transactions[idx].note = note;
-        }
-      } else {
-        const newId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2,4);
-        
-        if(isRecurring){
-          const rcId = 'rc_' + Date.now();
-          state.recurring.push({ id: rcId, type: txType, category, amount, note, startDate: date });
-          await saveMeta();
-        }
-
-        state.transactions.push({ id: newId, date, type: txType, category, amount, note });
-      }
-
-      await saveData();
-      closeTxModal();
-      renderAll();
-      showToast(editingTxId ? 'Transaksi diperbarui' : 'Transaksi berhasil dicatat');
-    });
-
-    document.getElementById('editBudgetsBtn').addEventListener('click', openBudgetModal);
-    document.getElementById('closeBudgetModal').addEventListener('click', closeBudgetModal);
-    document.getElementById('cancelBudgetBtn').addEventListener('click', closeBudgetModal);
-    
-    document.getElementById('saveBudgetBtn').addEventListener('click', async ()=>{
-      document.querySelectorAll('.budget-input').forEach(input => {
-        const cat = input.getAttribute('data-cat');
-        const val = parseInt(input.value, 10);
-        if(!isNaN(val) && val > 0) state.budgets[cat] = val;
-        else state.budgets[cat] = 0;
-      });
-      await saveMeta();
-      closeBudgetModal();
-      renderAll();
-      showToast('Anggaran bulanan diperbarui');
-    });
-
-    const gModal = document.getElementById('goalModal');
-    document.getElementById('addGoalBtn').addEventListener('click', ()=>{
-      document.getElementById('goalName').value = '';
-      document.getElementById('goalTarget').value = '';
-      document.getElementById('goalSaved').value = '';
-      gModal.classList.remove('hidden');
-    });
-    document.getElementById('closeGoalModal').addEventListener('click', ()=> gModal.classList.add('hidden'));
-    document.getElementById('cancelGoalBtn').addEventListener('click', ()=> gModal.classList.add('hidden'));
-    document.getElementById('saveGoalBtn').addEventListener('click', async ()=>{
-      const name = document.getElementById('goalName').value.trim();
-      const target = parseInt(document.getElementById('goalTarget').value, 10);
-      const saved = parseInt(document.getElementById('goalSaved').value, 10) || 0;
-
-      if(!name || isNaN(target) || target <= 0){
-        alert('Mohon isi nama target dan jumlah sasaran tabungan dengan benar.');
-        return;
-      }
-
-      state.goals.push({ id: 'g_' + Date.now(), name, target, saved });
-      await saveMeta();
-      gModal.classList.add('hidden');
-      renderAll();
-      showToast('Target tabungan baru ditambahkan');
-    });
-
-    const fModal = document.getElementById('fundsModal');
-    document.getElementById('closeFundsModal').addEventListener('click', ()=> fModal.classList.add('hidden'));
-    document.getElementById('cancelFundsBtn').addEventListener('click', ()=> fModal.classList.add('hidden'));
-    document.getElementById('saveFundsBtn').addEventListener('click', async ()=>{
-      const amt = parseInt(document.getElementById('fundsAmount').value, 10);
-      if(isNaN(amt) || amt <= 0){ alert('Masukkan jumlah penambahan dana yang valid.'); return; }
-      
-      const g = state.goals.find(x => x.id === fundsGoalId);
-      if(g){
-        g.saved += amt;
-        await saveMeta();
-      }
-      fModal.classList.add('hidden');
-      renderAll();
-      showToast('Dana tabungan berhasil ditambahkan');
-    });
-
-    const sModal = document.getElementById('settingsModal');
-    document.getElementById('settingsBtn').addEventListener('click', ()=> sModal.classList.remove('hidden'));
-    document.getElementById('closeSettingsModal').addEventListener('click', ()=> sModal.classList.add('hidden'));
-
-    const cModal = document.getElementById('categoryModal');
-    document.getElementById('openCategoryModalBtn').addEventListener('click', ()=>{
-      categoryModalType = 'expense';
-      document.getElementById('catTypeExpenseBtn').className = 'active';
-      document.getElementById('catTypeIncomeBtn').className = '';
-      document.getElementById('newCatName').value = '';
-      renderCategoryManageList();
-      cModal.classList.remove('hidden');
-    });
-    document.getElementById('closeCategoryModal').addEventListener('click', ()=> cModal.classList.add('hidden'));
-    document.getElementById('closeCategoryModalBtn2').addEventListener('click', ()=> cModal.classList.add('hidden'));
-    
-    document.getElementById('catTypeExpenseBtn').addEventListener('click', ()=>{
-      categoryModalType = 'expense';
-      document.getElementById('catTypeExpenseBtn').className = 'active';
-      document.getElementById('catTypeIncomeBtn').className = '';
-      renderCategoryManageList();
-    });
-    document.getElementById('catTypeIncomeBtn').addEventListener('click', ()=>{
-      categoryModalType = 'income';
-      document.getElementById('catTypeIncomeBtn').className = 'active';
-      document.getElementById('catTypeExpenseBtn').className = '';
-      renderCategoryManageList();
-    });
-
-    document.getElementById('addCatBtn').addEventListener('click', async ()=>{
-      const name = document.getElementById('newCatName').value.trim();
-      const color = document.getElementById('newCatColor').value;
-      if(!name){ alert('Nama kategori tidak boleh kosong.'); return; }
-
-      const arr = categoryModalType === 'expense' ? state.categories.expense : state.categories.income;
-      if(arr.some(c => c.name.toLowerCase() === name.toLowerCase())){ alert('Nama kategori sudah terdaftar.'); return; }
-
-      arr.push({ name, color });
-      await saveMeta();
-      document.getElementById('newCatName').value = '';
-      populateCategoryFilter();
-      renderCategoryManageList();
-      renderAll();
-      showToast('Kategori baru ditambahkan');
-    });
-
-    const rModal = document.getElementById('recurringModal');
-    document.getElementById('openRecurringModalBtn').addEventListener('click', ()=>{
-      renderRecurringList();
-      rModal.classList.remove('hidden');
-    });
-    document.getElementById('closeRecurringModal').addEventListener('click', ()=> rModal.classList.add('hidden'));
-    document.getElementById('closeRecurringModalBtn2').addEventListener('click', ()=> rModal.classList.add('hidden'));
-
-    document.getElementById('exportDataBtn').addEventListener('click', ()=>{
-      const bundle = { bk_version: 1, transactions: state.transactions, meta: { budgets: state.budgets, goals: state.goals, categories: state.categories, recurring: state.recurring } };
-      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `bukukas_backup_${new Date().toISOString().slice(0,10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      showToast('Data sukses di-export');
-    });
-
-    document.getElementById('importDataBtn').addEventListener('click', ()=> document.getElementById('importFileInput').click());
-    document.getElementById('importFileInput').addEventListener('change', (e)=>{
-      const file = e.target.files[0];
-      if(!file) return;
-      const r = new FileReader();
-      r.onload = async (evt)=>{
-        try{
-          const parsed = JSON.parse(evt.target.result);
-          
-          // Bersihkan data yang di-import jika ada transaksi yang melanggar batas Juli 2026
-          if(parsed.transactions){
-            state.transactions = parsed.transactions.filter(t => {
-              const d = new Date(t.date);
-              return !(d.getFullYear() < 2026 || (d.getFullYear() === 2026 && d.getMonth() < 6));
-            });
-          }
-          if(parsed.meta){
-            if(parsed.meta.budgets) state.budgets = parsed.meta.budgets;
-            if(parsed.meta.goals) state.goals = parsed.meta.goals;
-            if(parsed.meta.categories) state.categories = parsed.meta.categories;
-            if(parsed.meta.recurring) state.recurring = parsed.meta.recurring;
-          }
-          await saveData();
-          await saveMeta();
-          populateCategoryFilter();
-          renderAll();
-          showToast('Data berhasil di-import');
-          sModal.classList.add('hidden');
-        }catch(err){ alert('Gagal memproses file backup. Format JSON tidak sesuai.'); }
-      };
-      r.readAsText(file);
-      e.target.value = '';
-    });
-
-    const rstModal = document.getElementById('resetModal');
-    document.getElementById('openResetModalBtn').addEventListener('click', ()=> rstModal.classList.remove('hidden'));
-    document.getElementById('closeResetModal').addEventListener('click', ()=> rstModal.classList.add('hidden'));
-    document.getElementById('cancelResetBtn').addEventListener('click', ()=> rstModal.classList.add('hidden'));
-
-    document.getElementById('confirmResetMonthBtn').addEventListener('click', async ()=>{
-      if(confirm('Hapus transaksi bulan ini saja? Tindakan ini permanen.')){
-        const cy = currentView.getFullYear();
-        const cm = currentView.getMonth();
-        state.transactions = state.transactions.filter(t => {
-          const d = new Date(t.date);
-          return !(d.getFullYear() === cy && d.getMonth() === cm);
-        });
-        await saveData();
-        rstModal.classList.add('hidden');
-        sModal.classList.add('hidden');
-        renderAll();
-        showToast('Transaksi bulan ini dikosongkan');
-      }
-    });
-
-    document.getElementById('confirmResetAllBtn').addEventListener('click', async ()=>{
-      if(confirm('PERINGATAN! Hapus mutlak semua data keuangan Anda?')){
-        state.transactions = [];
-        state.budgets = {};
-        state.goals = [];
-        state.categories = defaultCategories();
-        state.recurring = [];
-        await saveData();
-        await saveMeta();
-        populateCategoryFilter();
-        rstModal.classList.add('hidden');
-        sModal.classList.add('hidden');
-        renderAll();
-        showToast('Semua database dibersihkan');
-      }
-    });
-
-    document.getElementById('searchTx').addEventListener('input', ()=> renderTransactionsTable(txInCurrentMonth()));
-    document.getElementById('filterType').addEventListener('change', ()=> renderTransactionsTable(txInCurrentMonth()));
-    document.getElementById('filterCategory').addEventListener('change', ()=> renderTransactionsTable(txInCurrentMonth()));
-
-    [['txModal',closeTxModal], ['budgetModal',closeBudgetModal], ['goalModal',closeGoalModal], ['fundsModal',closeFundsModal],
-     ['settingsModal',closeSettingsModal], ['categoryModal',closeCategoryModal], ['recurringModal',closeRecurringModal],
-     ['resetModal', ()=>document.getElementById('resetModal').classList.add('hidden')]].forEach(([id, closer])=>{
-      document.getElementById(id).addEventListener('click', (e)=>{ if(e.target.id === id) closer(); });
-    });
-
-    document.addEventListener('keydown', (e)=>{
-      if(e.key === 'Escape'){
-        closeTxModal(); closeBudgetModal(); closeGoalModal(); closeFundsModal(); closeSettingsModal(); closeCategoryModal(); closeRecurringModal();
-        document.getElementById('resetModal').classList.add('hidden');
-      }
-    });
-  }
-
-  async function init(){
-    applyTheme(loadTheme());
-    wireEvents();
-    setTxType('expense');
-
-    // Kunci mutlak: Jika waktu sistem perangkat di bawah Juli 2026, langsung arahkan ke Juli 2026.
-    // Jika sistem sudah melewati Juli 2026 (misal Agustus 2026 dst), ikuti waktu sistem saat ini.
-    const now = new Date();
-    if (now.getFullYear() < 2026 || (now.getFullYear() === 2026 && now.getMonth() < 6)) {
-      currentView = new Date(2026, 6, 1); // Bulan Juli di JavaScript indeksnya 6
-    } else {
-      currentView = new Date(now.getFullYear(), now.getMonth(), 1);
-    }
-
-    await loadData();
-    const seeded = await loadMeta();
-    if(!seeded && state.transactions.length === 0 && state.goals.length === 0){
-      seedSampleData();
-      await saveData();
-    }
-    await saveMeta();
-    populateCategoryFilter();
-    renderAll();
-  }
-
-  init();
-})();
-</script>
-
-</body>
-</html>
