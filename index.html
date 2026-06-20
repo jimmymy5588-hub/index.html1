@@ -222,7 +222,7 @@
   .cat-type-toggle button.active{ border-color:var(--accent); color:var(--accent); background: rgba(94,234,212,0.08); }
 
   .recurring-list{ display:flex; flex-direction:column; gap:8px; max-height:280px; overflow-y:auto; margin-bottom:6px; }
-  .recurring-row{ display:flex; align-items:center; gap:10px; padding:10px 12px; background:var(--surface-2); border:1px solid var(--border); border-radius:9px; }
+  .recurring-row{ display:flex; align-items:center; gap:10px; padding:10px 12px; background:var(--surface-2); border:1px solid var(--border); border-radius:99px; }
   .recurring-row .rc-dot{ width:8px; height:8px; border-radius:2px; flex-shrink:0; }
   .recurring-row .rc-info{ flex:1; min-width:0; }
   .recurring-row .rc-name{ font-size:12.5px; font-weight:600; }
@@ -552,131 +552,148 @@
   let categoryModalType = 'expense';
   let fundsGoalId = null;
 
-  let trendChartInstance = null;
-  let categoryChartInstance = null;
-  let compareChartInstance = null;
+  const STORAGE_KEY = 'buku-kas-data-v1';
+  const META_KEY = 'buku-kas-meta-v1';
+  const THEME_KEY = 'buku-kas-theme-v1';
 
-  const MONTHS_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-
-  function fmtRp(v){
-    const s = Math.abs(Math.round(v)).toLocaleString('id-ID');
-    return (v < 0 ? '-Rp' : 'Rp') + s;
-  }
-
-  function showToast(m){
-    const t = document.getElementById('toast');
-    document.getElementById('toastMsg').textContent = m;
-    t.classList.remove('hidden');
-    if(t.timeoutId) clearTimeout(t.timeoutId);
-    t.timeoutId = setTimeout(()=>{ t.classList.add('hidden'); }, 3000);
-  }
-
-  async function dbOp(storeName, mode, cb){
-    return new Promise((resolve, reject)=>{
-      const req = indexedDB.open('BukuKasDB', 1);
-      req.onupgradeneeded = (e)=>{
-        const db = e.target.result;
-        if(!db.objectStoreNames.contains('data')) db.createObjectStore('data');
-        if(!db.objectStoreNames.contains('meta')) db.createObjectStore('meta');
-      };
-      req.onerror = ()=> reject(req.error);
-      req.onsuccess = (e)=>{
-        const db = e.target.result;
-        const tx = db.transaction(storeName, mode);
-        const store = tx.objectStore(storeName);
-        const res = cb(store);
-        tx.oncomplete = ()=> resolve(res?.result ?? res);
-        tx.onerror = ()=> reject(tx.error);
-      };
-    });
+  async function loadData(){
+    try{
+      const d = localStorage.getItem(STORAGE_KEY);
+      if(d){
+        const parsed = JSON.parse(d);
+        if(parsed.transactions) state.transactions = parsed.transactions;
+        if(parsed.budgets) state.budgets = parsed.budgets;
+        if(parsed.goals) state.goals = parsed.goals;
+      }
+    }catch(e){ showToast("Gagal memuat data utama"); }
   }
 
   async function saveData(){
-    await dbOp('data', 'readwrite', store => store.put(state.transactions, 'transactions'));
-  }
-  async function loadData(){
     try{
-      const r = await dbOp('data', 'readonly', store => store.get('transactions'));
-      if(r) state.transactions = r;
-    }catch(e){ console.error(e); }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        transactions: state.transactions,
+        budgets: state.budgets,
+        goals: state.goals
+      }));
+    }catch(e){ showToast("Penyimpanan gagal, kuota penuh?"); }
   }
 
-  async function saveMeta(){
-    const copy = { budgets: state.budgets, goals: state.goals, categories: state.categories, recurring: state.recurring };
-    await dbOp('meta', 'readwrite', store => store.put(copy, 'app_meta'));
-  }
   async function loadMeta(){
     try{
-      const r = await dbOp('meta', 'readonly', store => store.get('app_meta'));
-      if(r){
-        if(r.budgets) state.budgets = r.budgets;
-        if(r.goals) state.goals = r.goals;
-        if(r.categories) state.categories = r.categories;
-        if(r.recurring) state.recurring = r.recurring;
-        return true;
+      const m = localStorage.getItem(META_KEY);
+      if(m){
+        const parsed = JSON.parse(m);
+        if(parsed.categories) state.categories = parsed.categories;
+        if(parsed.recurring) state.recurring = parsed.recurring;
+        return parsed.seeded || false;
       }
-    }catch(e){ console.error(e); }
+    }catch(e){}
     return false;
   }
 
+  async function saveMeta(){
+    try{
+      localStorage.setItem(META_KEY, JSON.stringify({
+        categories: state.categories,
+        recurring: state.recurring,
+        seeded: true
+      }));
+    }catch(e){}
+  }
+
+  function loadTheme(){
+    return localStorage.getItem(THEME_KEY) || 'dark';
+  }
+
+  function applyTheme(t){
+    document.documentElement.setAttribute('data-theme', t);
+    const btn = document.getElementById('themeToggleBtn');
+    if(btn) btn.textContent = (t === 'light') ? '🌙' : '☀️';
+  }
+
+  function toggleTheme(){
+    const next = (loadTheme() === 'light') ? 'dark' : 'light';
+    localStorage.setItem(THEME_KEY, next);
+    applyTheme(next);
+    renderCharts();
+  }
+
   function seedSampleData(){
-    const now = new Date(currentView);
+    const now = new Date();
     const y = now.getFullYear();
     const m = now.getMonth();
-    
+
     state.transactions = [
-      { id: 't1', date: `${y}-${String(m+1).padStart(2,'0')}-02`, type: 'income', category: 'Gaji', amount: 8500000, note: 'Gaji Bulanan Utama' },
-      { id: 't2', date: `${y}-${String(m+1).padStart(2,'0')}-05`, type: 'expense', category: 'Makanan & Minuman', amount: 120000, note: 'Belanja mingguan supermarket' },
-      { id: 't3', date: `${y}-${String(m+1).padStart(2,'0')}-10`, type: 'expense', category: 'Tagihan & Utilitas', amount: 450000, note: 'Listrik & Wifi Rumah' },
-      { id: 't4', date: `${y}-${String(m+1).padStart(2,'0')}-12`, type: 'expense', category: 'Transportasi', amount: 250000, note: 'Isi saldo e-money Tol' },
-      { id: 't5', date: `${y}-${String(m+1).padStart(2,'0')}-15`, type: 'income', category: 'Investasi', amount: 350000, note: 'Dividen reksadana' },
-      { id: 't6', date: `${y}-${String(m+1).padStart(2,'0')}-18`, type: 'expense', category: 'Hiburan', amount: 180000, note: 'Nonton bioskop & kopi' }
+      { id:'s1', date:`${y}-${pad(m+1)}-01`, category:'Gaji', amount:8500000, note:'Gaji bulanan pokok', type:'income' },
+      { id:'s2', date:`${y}-${pad(m+1)}-02`, category:'Makanan & Minuman', amount:125000, note:'Belanja mingguan pasar', type:'expense' },
+      { id:'s3', date:`${y}-${pad(m+1)}-05`, category:'Tagihan & Utilitas', amount:340000, note:'Listrik & Wifi internet', type:'expense' },
+      { id:'s4', date:`${y}-${pad(m+1)}-10`, category:'Transportasi', amount:200000, note:'Isi e-money toll', type:'expense' },
+      { id:'s5', date:`${y}-${pad(m+1)}-12`, category:'Bonus', amount:1500000, note:'Project sampingan selesai', type:'income' },
+      { id:'s6', date:`${y}-${pad(m+1)}-15`, category:'Hiburan', amount:450000, note:'Beli game & tiket bioskop', type:'expense' }
     ];
 
     state.budgets = {
-      'Makanan & Minuman': 2000000,
-      'Transportasi': 800000,
-      'Tagihan & Utilitas': 1500000,
-      'Hiburan': 1000000
+      'Makanan & Minuman': 1500000,
+      'Transportasi': 600000,
+      'Tagihan & Utilitas': 1000000,
+      'Hiburan': 500000
     };
 
     state.goals = [
-      { id: 'g1', name: 'Dana Darurat 6 Bulan', target: 20000000, saved: 8500000 },
-      { id: 'g2', name: 'Liburan Akhir Tahun', target: 7500000, saved: 300000 }
+      { id:'g1', name:'Dana Darurat 2026', target:15000000, saved:4500000 },
+      { id:'g2', name:'Beli Laptop Baru', target:12000000, saved:8000000 }
+    ];
+
+    state.recurring = [
+      { id:'r1', day:1, category:'Gaji', amount:8500000, note:'[Otomatis] Gaji Pokok', type:'income' },
+      { id:'r2', day:5, category:'Tagihan & Utilitas', amount:340000, note:'[Otomatis] Internet & Listrik', type:'expense' }
     ];
   }
 
-  function processRecurringForMonth(viewDate){
-    const y = viewDate.getFullYear();
-    const m = viewDate.getMonth();
-    let updated = false;
+  function processRecurringForMonth(year, month){
+    const key = `rec-processed-${year}-${month}`;
+    if(localStorage.getItem(key)) return;
 
-    state.recurring.forEach(rc => {
-      const start = new Date(rc.startDate);
-      const viewStr = `${y}-${String(m+1).padStart(2,'0')}`;
-      const startStr = `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}`;
-      
-      if (viewStr >= startStr) {
-        const dayStr = String(start.getDate()).padStart(2, '0');
-        const targetDateStr = `${y}-${String(m+1).padStart(2,'0')}-${dayStr}`;
-        
-        const exists = state.transactions.some(t => t.recurringId === rc.id && t.date === targetDateStr);
-        if(!exists){
-          state.transactions.push({
-            id: 'tx_rc_' + Date.now() + '_' + Math.random().toString(36).substr(2,4),
-            recurringId: rc.id,
-            date: targetDateStr,
-            type: rc.type,
-            category: rc.category,
-            amount: rc.amount,
-            note: `[Otomatis] ${rc.note}`
-          });
-          updated = true;
-        }
+    let addedAny = false;
+    state.recurring.forEach(r => {
+      const dStr = `${year}-${pad(month+1)}-${pad(r.day)}`;
+      const exists = state.transactions.some(t => t.date === dStr && t.category === r.category && t.amount === r.amount && t.note === r.note);
+      if(!exists){
+        state.transactions.push({
+          id: 'rc-' + Date.now() + '-' + Math.random().toString(36).substr(2,4),
+          date: dStr,
+          category: r.category,
+          amount: r.amount,
+          note: r.note,
+          type: r.type
+        });
+        addedAny = true;
       }
     });
 
-    if(updated) saveData();
+    if(addedAny) saveData();
+    localStorage.setItem(key, 'true');
+  }
+
+  function pad(n){ return n < 10 ? '0'+n : n; }
+
+  function formatRp(v){
+    return 'Rp' + Math.abs(v).toLocaleString('id-ID');
+  }
+
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    const m = document.getElementById('toastMsg');
+    if(!t || !m) return;
+    m.textContent = msg;
+    t.classList.remove('hidden');
+    clearTimeout(window.toastTimer);
+    window.toastTimer = setTimeout(()=>{ t.classList.add('hidden'); }, 2500);
+  }
+
+  function changeMonth(delta){
+    currentView.setMonth(currentView.getMonth() + delta);
+    renderAll();
   }
 
   function txInCurrentMonth(){
@@ -685,119 +702,849 @@
     return state.transactions.filter(t => {
       const d = new Date(t.date);
       return d.getFullYear() === cy && d.getMonth() === cm;
-    }).sort((a,b)=> b.date.localeCompare(a.date));
+    }).sort((a,b)=> new Date(b.date) - new Date(a.date));
   }
 
-  function changeMonth(delta){
-    const nextMonth = new Date(currentView);
-    nextMonth.setMonth(nextMonth.getMonth() + delta);
-    
-    // Kunci batas minimal pencatatan: Juli 2026 (Tahun 2026, indeks bulan 6)
-    if (nextMonth.getFullYear() < 2026 || (nextMonth.getFullYear() === 2026 && nextMonth.getMonth() < 6)) {
-      showToast("Batas minimum pencatatan adalah Juli 2026");
-      return;
-    }
-    
-    currentView = nextMonth;
-    renderAll();
-  }
-
-  function loadTheme(){ return localStorage.getItem('bk_theme') || 'dark'; }
-  function saveTheme(t){ localStorage.setItem('bk_theme', t); }
-  function applyTheme(t){
-    document.documentElement.setAttribute('data-theme', t);
-    document.getElementById('themeToggleBtn').textContent = (t === 'light') ? '🌙' : '☀️';
+  function getCategorySummary(txs){
+    const sum = {};
+    txs.forEach(t => {
+      if(t.type === 'expense'){
+        sum[t.category] = (sum[t.category] || 0) + t.amount;
+      }
+    });
+    return sum;
   }
 
   function renderAll(){
-    processRecurringForMonth(currentView);
+    const cy = currentView.getFullYear();
+    const cm = currentView.getMonth();
+    processRecurringForMonth(cy, cm);
 
-    const mLabel = `${MONTHS_ID[currentView.getMonth()]} ${currentView.getFullYear()}`;
-    document.getElementById('monthLabel').textContent = mLabel;
-    document.getElementById('resetMonthName').textContent = mLabel;
+    const mNames = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+    document.getElementById('monthLabel').textContent = `${mNames[cm]} ${cy}`;
 
-    const currentTx = txInCurrentMonth();
+    const txs = txInCurrentMonth();
+    
     let inc = 0, exp = 0;
-    currentTx.forEach(t=>{ if(t.type==='income') inc+=t.amount; else exp+=t.amount; });
+    txs.forEach(t=>{
+      if(t.type==='income') inc+=t.amount;
+      else exp+=t.amount;
+    });
 
     const net = inc - exp;
-    const balEl = document.getElementById('heroBalance');
-    balEl.textContent = fmtRp(net);
-    if(net >= 0){ balEl.className = 'hero-number positive'; } else { balEl.className = 'hero-number negative'; }
+    const netEl = document.getElementById('heroBalance');
+    netEl.textContent = formatRp(net);
+    netEl.className = 'hero-number ' + (net >= 0 ? 'positive' : 'negative');
 
     const subEl = document.getElementById('heroSub');
     if(exp === 0 && inc === 0){
-      subEl.innerHTML = 'Belum ada catatan transaksi di bulan ini.';
+      subEl.innerHTML = "Belum ada rekaman aktivitas pencatatan di bulan ini.";
     } else if(net >= 0){
-      subEl.innerHTML = `Surplus aman! Pengeluaran memakan <span class="delta-down">${((exp/(inc||1))*100).toFixed(0)}%</span> dompet.`;
+      subEl.innerHTML = `Surplus <span class="delta-up">${formatRp(net)}</span> aman terkendali.`;
     } else {
-      subEl.innerHTML = `Defisit! Pengeluaran membengkak <span class="delta-down">${fmtRp(Math.abs(net))}</span> melebihi pemasukan.`;
+      subEl.innerHTML = `Defisit <span class="delta-down">${formatRp(net)}</span>. Perketat pengeluaran!`;
     }
 
-    document.getElementById('totalIncome').textContent = fmtRp(inc);
-    document.getElementById('totalExpense').textContent = fmtRp(exp);
-    
-    const rate = inc > 0 ? Math.max(0, Math.round((net / inc) * 100)) : 0;
+    document.getElementById('totalIncome').textContent = formatRp(inc);
+    document.getElementById('totalExpense').textContent = formatRp(exp);
+
+    const activeRecInc = state.recurring.filter(r=>r.type==='income').reduce((a,b)=>a+b.amount,0);
+    const activeRecExp = state.recurring.filter(r=>r.type==='expense').reduce((a,b)=>a+b.amount,0);
+    document.getElementById('incomeFoot').textContent = activeRecInc > 0 ? `+${formatRp(activeRecInc)} otomatis` : 'Tidak ada income rutin';
+    document.getElementById('expenseFoot').textContent = activeRecExp > 0 ? `-${formatRp(activeRecExp)} otomatis` : 'Tidak ada tagihan rutin';
+
+    const rate = inc > 0 ? Math.max(0, Math.min(100, Math.round((net / inc) * 100))) : 0;
     document.getElementById('savingsRate').textContent = `${rate}%`;
 
-    const prevMonthDate = new Date(currentView);
-    prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
-    
-    // Cegah pencarian data jika bulan sebelumnya di bawah batas minimum Juli 2026
-    let prevInc = 0;
-    if (!(prevMonthDate.getFullYear() < 2026 || (prevMonthDate.getFullYear() === 2026 && prevMonthDate.getMonth() < 6))) {
-      state.transactions.forEach(t => {
-        const d = new Date(t.date);
-        if(d.getFullYear() === prevMonthDate.getFullYear() && d.getMonth() === prevMonthDate.getMonth() && t.type === 'income') prevInc += t.amount;
-      });
-    }
-
-    const incFoot = document.getElementById('incomeFoot');
-    if(prevInc > 0){
-      const diff = inc - prevInc;
-      const pct = Math.abs((diff/prevInc)*100).toFixed(0);
-      if(diff>=0) incFoot.innerHTML = `<span class="delta-up">↑ ${pct}%</span> dibanding bulan lalu`;
-      else incFoot.innerHTML = `<span class="delta-down">↓ ${pct}%</span> dibanding bulan lalu`;
-    } else { incFoot.innerHTML = '&nbsp;'; }
-
-    let prevExp = 0;
-    if (!(prevMonthDate.getFullYear() < 2026 || (prevMonthDate.getFullYear() === 2026 && prevMonthDate.getMonth() < 6))) {
-      state.transactions.forEach(t => {
-        const d = new Date(t.date);
-        if(d.getFullYear() === prevMonthDate.getFullYear() && d.getMonth() === prevMonthDate.getMonth() && t.type === 'expense') prevExp += t.amount;
-      });
-    }
-
-    const expFoot = document.getElementById('expenseFoot');
-    if(prevExp > 0){
-      const diff = exp - prevExp;
-      const pct = Math.abs((diff/prevExp)*100).toFixed(0);
-      if(diff<=0) expFoot.innerHTML = `<span class="delta-up">↓ ${pct}%</span> hemat drpd bulan lalu`;
-      else expFoot.innerHTML = `<span class="delta-down">↑ ${pct}%</span> lebih boros drpd bulan lalu`;
-    } else { expFoot.innerHTML = '&nbsp;'; }
-
-    renderTrendChart(currentTx);
-    renderCategoryChart(currentTx);
-    renderCompareChart();
-    renderBudgets(currentTx);
+    renderBudgets(txs);
     renderGoals();
-    renderTransactionsTable(currentTx);
+    renderTransactionsTable(txs);
+    renderCharts();
   }
 
-  function getDaysInMonth(y, m){ return new Date(y, m + 1, 0).getDate(); }
+  function renderBudgets(monthTxs){
+    const container = document.getElementById('budgetList');
+    if(!container) return;
+    container.innerHTML = '';
 
-  function renderTrendChart(txs){
-    const ctx = document.getElementById('trendChart').getContext('2d');
-    const daysCount = getDaysInMonth(currentView.getFullYear(), currentView.getMonth());
+    const expSum = {};
+    monthTxs.forEach(t=>{ if(t.type==='expense') expSum[t.category] = (expSum[t.category]||0)+t.amount; });
+
+    const catsWithBudget = Object.keys(state.budgets);
+    if(catsWithBudget.length === 0){
+      container.innerHTML = `<div class="budget-empty">Belum ada batas anggaran. Klik tombol di atas untuk membuat anggaran baru.</div>`;
+      return;
+    }
+
+    catsWithBudget.forEach(cat => {
+      const limit = state.budgets[cat] || 0;
+      if(limit === 0) return;
+      const spent = expSum[cat] || 0;
+      const pct = Math.min(100, (spent / limit) * 100);
+      const isOver = spent > limit;
+      const dotColor = catColor(cat);
+
+      const row = document.createElement('div');
+      row.className = 'budget-row';
+      row.innerHTML = `
+        <div class="budget-row-top">
+          <div class="budget-cat"><span class="budget-cat-dot" style="background:${dotColor}"></span>${cat}</div>
+          <div class="budget-amt">
+            <span>${formatRp(spent)}</span> / <span style="color:var(--text-faint)">${formatRp(limit)}</span>
+            ${isOver ? `<span class="over">(Over ${formatRp(spent-limit)})</span>` : ''}
+          </div>
+        </div>
+        <div class="budget-track">
+          <div class="budget-fill" style="width:${pct}%; background:${isOver ? 'var(--expense)' : dotColor}"></div>
+        </div>
+      `;
+      container.appendChild(row);
+    });
+  }
+
+  function renderGoals(){
+    const container = document.getElementById('goalsList');
+    if(!container) return;
+    container.innerHTML = '';
+
+    if(state.goals.length === 0){
+      container.innerHTML = `<div class="goals-empty">Belum ada target impian keuangan.</div>`;
+      return;
+    }
+
+    state.goals.forEach(g => {
+      const pct = Math.min(100, Math.round((g.saved / g.target) * 100));
+      const card = document.createElement('div');
+      card.className = 'goal-card';
+      
+      const rColor = pct >= 100 ? 'var(--income)' : 'var(--savings)';
+      
+      card.innerHTML = `
+        <div class="goal-ring">
+          <svg width="42" height="42" viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="16" fill="none" stroke="var(--surface-3)" stroke-width="3.5"></circle>
+            <circle cx="18" cy="18" r="16" fill="none" stroke="${rColor}" stroke-width="3.5"
+                    stroke-dasharray="${pct} 100" stroke-dashoffset="0" transform="rotate(-90 18 18)"></circle>
+            <text x="18" y="21" font-family="var(--font-mono)" font-size="9" font-weight="700" fill="var(--text)" text-anchor="middle">${pct}%</text>
+          </svg>
+        </div>
+        <div class="goal-info">
+          <div class="goal-name" title="${g.name}">${g.name}</div>
+          <div class="goal-amt">${formatRp(g.saved)} / ${formatRp(g.target)}</div>
+          <div class="goal-actions">
+            <button onclick="window.handleGoalFunds('${g.id}')">+ Dana</button>
+            <button onclick="window.handleDeleteGoal('${g.id}')">✕</button>
+          </div>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  window.handleGoalFunds = function(id){
+    fundsGoalId = id;
+    document.getElementById('fundsAmount').value = '';
+    document.getElementById('fundsModal').classList.remove('hidden');
+  };
+
+  function saveFunds(){
+    const amt = parseInt(document.getElementById('fundsAmount').value) || 0;
+    if(amt <= 0){ showToast("Jumlah tambahan dana harus valid"); return; }
+    const g = state.goals.find(x=>x.id===fundsGoalId);
+    if(g){
+      g.saved += amt;
+      saveData();
+      renderAll();
+      closeFundsModal();
+      showToast(`Berhasil menabung ${formatRp(amt)} ke ${g.name}! 🎉`);
+    }
+  }
+
+  function closeFundsModal(){ document.getElementById('fundsModal').classList.add('hidden'); fundsGoalId = null; }
+
+  window.handleDeleteGoal = function(id){
+    state.goals = state.goals.filter(x=>x.id!==id);
+    saveData();
+    renderAll();
+    showToast("Target tabungan berhasil dihapus");
+  };
+
+  function renderTransactionsTable(txs){
+    const tbody = document.getElementById('txTableBody');
+    const countEl = document.getElementById('txCount');
+    if(!tbody) return;
+    tbody.innerHTML = '';
+
+    const query = document.getElementById('searchTx').value.toLowerCase().trim();
+    const fType = document.getElementById('filterType').value;
+    const fCat = document.getElementById('filterCategory').value;
+
+    let filtered = txs;
+    if(query){
+      filtered = filtered.filter(t => (t.note && t.note.toLowerCase().includes(query)) || t.category.toLowerCase().includes(query));
+    }
+    if(fType !== 'all'){ filtered = filtered.filter(t => t.type === fType); }
+    if(fCat !== 'all'){ filtered = filtered.filter(t => t.category === fCat); }
+
+    countEl.textContent = `(${filtered.length})`;
+
+    if(filtered.length === 0){
+      tbody.innerHTML = `<tr><td colspan="5"><div class="tx-empty">Tidak ada riwayat rekaman transaksi yang cocok.</div></td></tr>`;
+      return;
+    }
+
+    filtered.forEach(t => {
+      const tr = document.createElement('tr');
+      const dotColor = catColor(t.category);
+      const isInc = t.type === 'income';
+
+      const d = new Date(t.date);
+      const formattedDate = `${pad(d.getDate())}/${pad(d.getMonth()+1)}`;
+
+      tr.innerHTML = `
+        <td style="font-family:var(--font-mono); font-size:12.5px; width:65px;">${formattedDate}</td>
+        <td style="width:150px;"><span class="tx-cat-pill" style="background:${dotColor}22; color:${dotColor}; border:1px solid ${dotColor}44">${t.category}</span></td>
+        <td>
+          <div class="tx-tape">
+            <span class="tx-tape-bar" style="background:${isInc?'var(--income)':'var(--expense)'}"></span>
+            <div style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+              <div style="font-weight:500;">${t.note || '—'}</div>
+            </div>
+          </div>
+        </td>
+        <td class="tx-amt ${t.type}" style="width:130px;">${isInc ? '+' : '-'}${formatRp(t.amount).replace('Rp','')}</td>
+        <td style="width:75px;">
+          <div class="tx-row-actions">
+            <button class="icon-btn" onclick="window.handleEditTx('${t.id}')" title="Ubah baris data">✎</button>
+            <button class="icon-btn danger" onclick="window.handleDeleteTx('${t.id}')" title="Hapus permanen">✕</button>
+          </div>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  window.handleEditTx = function(id){
+    const t = state.transactions.find(x=>x.id===id);
+    if(!t) return;
+    editingTxId = id;
+    setTxType(t.type);
+    document.getElementById('txDate').value = t.date;
+    populateModalCategories();
+    document.getElementById('txCategory').value = t.category;
+    document.getElementById('txAmount').value = t.amount;
+    document.getElementById('txNote').value = t.note || '';
+    document.getElementById('txRecurringWrap').style.display = 'none';
+    document.getElementById('txModalTitle').textContent = 'Ubah Baris Transaksi';
+    document.getElementById('txModal').classList.remove('hidden');
+  };
+
+  window.handleDeleteTx = function(id){
+    state.transactions = state.transactions.filter(x=>x.id!==id);
+    saveData();
+    renderAll();
+    showToast("Transaksi baris data dihapus");
+  };
+
+  function openTxModal(){
+    editingTxId = null;
+    setTxType('expense');
+    const today = new Date();
+    const cy = currentView.getFullYear();
+    const cm = currentView.getMonth();
     
+    let defaultDate = `${cy}-${pad(cm+1)}-${pad(today.getDate())}`;
+    if(today.getFullYear()!==cy || today.getMonth()!==cm){
+      defaultDate = `${cy}-${pad(cm+1)}-01`;
+    }
+
+    document.getElementById('txDate').value = defaultDate;
+    document.getElementById('txAmount').value = '';
+    document.getElementById('txNote').value = '';
+    document.getElementById('txRecurring').checked = false;
+    document.getElementById('txRecurringWrap').style.display = 'flex';
+    document.getElementById('txModalTitle').textContent = 'Tambah Transaksi';
+    document.getElementById('txModal').classList.remove('hidden');
+  }
+
+  function closeTxModal(){ document.getElementById('txModal').classList.add('hidden'); }
+
+  function setTxType(type){
+    txType = type;
+    const incBtn = document.getElementById('typeIncomeBtn');
+    const expBtn = document.getElementById('typeExpenseBtn');
+    if(type === 'income'){
+      incBtn.className = 'active income-active';
+      expBtn.className = '';
+    } else {
+      expBtn.className = 'active expense-active';
+      incBtn.className = '';
+    }
+    populateModalCategories();
+  }
+
+  function populateModalCategories(){
+    const select = document.getElementById('txCategory');
+    if(!select) return;
+    select.innerHTML = '';
+    const arr = txType === 'income' ? state.categories.income : state.categories.expense;
+    arr.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.name; opt.textContent = c.name;
+      select.appendChild(opt);
+    });
+  }
+
+  function saveTransaction(){
+    const date = document.getElementById('txDate').value;
+    const cat = document.getElementById('txCategory').value;
+    const amt = parseInt(document.getElementById('txAmount').value) || 0;
+    const note = document.getElementById('txNote').value.trim();
+    const recChecked = document.getElementById('txRecurring').checked;
+
+    if(!date){ showToast("Pilih penanggalan yang sah"); return; }
+    if(!cat){ showToast("Kategori tidak boleh kosong"); return; }
+    if(amt <= 0){ showToast("Isi besaran jumlah koin nominal rupiah"); return; }
+
+    if(editingTxId){
+      const t = state.transactions.find(x=>x.id===editingTxId);
+      if(t){
+        t.date = date; t.category = cat; t.amount = amt; t.note = note; t.type = txType;
+      }
+    } else {
+      const newId = 'tx-' + Date.now();
+      state.transactions.push({ id:newId, date, category:cat, amount:amt, note, type:txType });
+      
+      if(recChecked){
+        const dayNum = new Date(date).getDate();
+        state.recurring.push({
+          id: 'rc-' + Date.now(),
+          day: dayNum,
+          category: cat,
+          amount: amt,
+          note: note ? `[Otomatis] ${note}` : `[Otomatis] Rutin ${cat}`,
+          type: txType
+        });
+        saveMeta();
+      }
+    }
+
+    saveData();
+    renderAll();
+    closeTxModal();
+    showToast(editingTxId ? "Berhasil diperbarui" : "Transaksi baru dicatat");
+  }
+
+  function openBudgetModal(){
+    const list = document.getElementById('budgetEditList');
+    if(!list) return;
+    list.innerHTML = '';
+
+    state.categories.expense.forEach(c => {
+      const currentVal = state.budgets[c.name] || '';
+      const div = document.createElement('div');
+      div.className = 'budget-edit-row';
+      div.innerHTML = `
+        <label><span style="width:8px; height:8px; background:${c.color}; border-radius:2px; display:inline-block"></span>${c.name}</label>
+        <input type="number" data-cat="${c.name}" value="${currentVal}" placeholder="Batas Rp" min="0" step="50000">
+      `;
+      list.appendChild(div);
+    });
+    document.getElementById('budgetModal').classList.remove('hidden');
+  }
+
+  function closeBudgetModal(){ document.getElementById('budgetModal').classList.add('hidden'); }
+
+  function saveBudgets(){
+    const inputs = document.querySelectorAll('#budgetEditList input');
+    inputs.forEach(inp => {
+      const cat = inp.getAttribute('data-cat');
+      const val = parseInt(inp.value) || 0;
+      if(val > 0) state.budgets[cat] = val;
+      else delete state.budgets[cat];
+    });
+    saveData();
+    renderAll();
+    closeBudgetModal();
+    showToast("Rencana anggaran bulanan disimpan");
+  }
+
+  function openGoalModal(){
+    document.getElementById('goalName').value = '';
+    document.getElementById('goalTarget').value = '';
+    document.getElementById('goalSaved').value = '';
+    document.getElementById('goalModal').classList.remove('hidden');
+  }
+  function closeGoalModal(){ document.getElementById('goalModal').classList.add('hidden'); }
+
+  function saveGoal(){
+    const name = document.getElementById('goalName').value.trim();
+    const target = parseInt(document.getElementById('goalTarget').value) || 0;
+    const saved = parseInt(document.getElementById('goalSaved').value) || 0;
+
+    if(!name){ showToast("Nama target tabungan wajib diisi"); return; }
+    if(target <= 0){ showToast("Jumlah target impian harus valid"); return; }
+
+    state.goals.push({ id:'g-'+Date.now(), name, target, saved });
+    saveData();
+    renderAll();
+    closeGoalModal();
+    showToast("Target tabungan baru ditambahkan!");
+  }
+
+  function openSettingsModal(){ document.getElementById('settingsModal').classList.remove('hidden'); }
+  function closeSettingsModal(){ document.getElementById('settingsModal').classList.add('hidden'); }
+
+  function openCategoryModal(){
+    setCategoryModalType('expense');
+    document.getElementById('categoryModal').classList.remove('hidden');
+  }
+  function closeCategoryModal(){ document.getElementById('categoryModal').classList.add('hidden'); }
+
+  function setCategoryModalType(t){
+    categoryModalType = t;
+    const btnExp = document.getElementById('catTypeExpenseBtn');
+    const btnInc = document.getElementById('catTypeIncomeBtn');
+    if(t==='expense'){ btnExp.className='active'; btnInc.className=''; }
+    else { btnInc.className='active'; btnExp.className=''; }
+    renderCategoryManageList();
+  }
+
+  function renderCategoryManageList(){
+    const list = document.getElementById('catManageList');
+    if(!list) return;
+    list.innerHTML = '';
+    const arr = categoryModalType==='expense'?state.categories.expense : state.categories.income;
+    arr.forEach(c=>{
+      const row = document.createElement('div');
+      row.className = 'cat-manage-row';
+      row.innerHTML = `
+        <span class="cm-dot" style="background:${c.color}"></span>
+        <span class="cm-name">${c.name}</span>
+        <button onclick="window.handleDeleteCategory('${c.name}')" title="Hapus kategori">✕</button>
+      `;
+      list.appendChild(row);
+    });
+  }
+
+  window.handleDeleteCategory = function(name){
+    if(categoryModalType==='expense'){
+      state.categories.expense = state.categories.expense.filter(c=>c.name!==name);
+    } else {
+      state.categories.income = state.categories.income.filter(c=>c.name!==name);
+    }
+    saveMeta();
+    populateCategoryFilter();
+    renderCategoryManageList();
+    renderAll();
+    showToast(`Kategori ${name} dihapus`);
+  };
+
+  function addCustomCategory(){
+    const nameInp = document.getElementById('newCatName');
+    const colorInp = document.getElementById('newCatColor');
+    const name = nameInp.value.trim();
+    const color = colorInp.value;
+
+    if(!name){ showToast("Ketik nama kategori baru"); return; }
+    
+    const arr = categoryModalType==='expense'?state.categories.expense : state.categories.income;
+    if(arr.some(c=>c.name.toLowerCase()===name.toLowerCase())){ showToast("Kategori sudah terdaftar"); return; }
+
+    arr.push({name, color});
+    saveMeta();
+    populateCategoryFilter();
+    nameInp.value = '';
+    renderCategoryManageList();
+    renderAll();
+    showToast(`Kategori ${name} ditambahkan`);
+  }
+
+  function populateCategoryFilter(){
+    const fCat = document.getElementById('filterCategory');
+    if(!fCat) return;
+    const oldVal = fCat.value;
+    fCat.innerHTML = '<option value="all">Semua Kategori</option>';
+
+    const unique = new Set();
+    state.categories.expense.forEach(c=>unique.add(c.name));
+    state.categories.income.forEach(c=>unique.add(c.name));
+
+    unique.forEach(name=>{
+      const opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      fCat.appendChild(opt);
+    });
+    if([...unique].includes(oldVal)) fCat.value = oldVal;
+  }
+
+  function openRecurringModal(){
+    renderRecurringList();
+    document.getElementById('recurringModal').classList.remove('hidden');
+  }
+  function closeRecurringModal(){ document.getElementById('recurringModal').classList.add('hidden'); }
+
+  function renderRecurringList(){
+    const list = document.getElementById('recurringList');
+    if(!list) return;
+    list.innerHTML = '';
+
+    state.recurring.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'recurring-row';
+      const dotColor = catColor(r.category);
+      row.innerHTML = `
+        <span class="rc-dot" style="background:${dotColor}"></span>
+        <div class="rc-info">
+          <div class="rc-name">${r.note || r.category}</div>
+          <div class="rc-sub">Tiap tanggal ${r.day} • Tipe: ${r.type==='income'?'Pemasukan':'Pengeluaran'}</div>
+        </div>
+        <div class="rc-amt ${r.type}">${r.type==='income'?'+':'-'}${formatRp(r.amount)}</div>
+        <button class="icon-btn danger" style="margin-left:10px;" onclick="window.handleDeleteRecurring('${r.id}')">✕</button>
+      `;
+      list.appendChild(row);
+    });
+
+    if(state.recurring.length === 0){
+      list.innerHTML = `<div class="recurring-empty">Tidak ada transaksi berulang aktif.</div>`;
+    }
+  }
+
+  window.handleDeleteRecurring = function(id){
+    state.recurring = state.recurring.filter(x=>x.id!==id);
+    saveMeta();
+    renderRecurringList();
+    renderAll();
+    showToast("Aturan transaksi berulang dinonaktifkan");
+  };
+
+  function resetCurrentMonth(){
+    const cy = currentView.getFullYear();
+    const cm = currentView.getMonth();
+    state.transactions = state.transactions.filter(t => {
+      const d = new Date(t.date);
+      return !(d.getFullYear() === cy && d.getMonth() === cm);
+    });
+    saveData();
+    renderAll();
+    document.getElementById('resetModal').classList.add('hidden');
+    showToast("Data transaksi bulan ini berhasil dibersihkan");
+  }
+
+  function resetAllData(){
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(META_KEY);
+    state.transactions = [];
+    state.budgets = {};
+    state.goals = [];
+    state.categories = defaultCategories();
+    state.recurring = [];
+    seedSampleData();
+    saveData();
+    saveMeta();
+    populateCategoryFilter();
+    renderAll();
+    document.getElementById('resetModal').classList.add('hidden');
+    showToast("Semua database disetel ulang ke awal pabrik");
+  }
+
+  function exportData(){
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
+      version: 1,
+      transactions: state.transactions,
+      budgets: state.budgets,
+      goals: state.goals,
+      categories: state.categories,
+      recurring: state.recurring
+    }));
+    const dlAnchor = document.createElement('a');
+    dlAnchor.setAttribute("href", dataStr);
+    dlAnchor.setAttribute("download", `BukuKas_Backup_${new Date().toISOString().slice(0,10)}.json`);
+    document.body.appendChild(dlAnchor);
+    dlAnchor.click();
+    dlAnchor.remove();
+    showToast("File backup .json berhasil diunduh");
+  }
+
+  function importData(e){
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = function(evt){
+      try{
+        const parsed = JSON.parse(evt.target.result);
+        if(parsed.transactions) state.transactions = parsed.transactions;
+        if(parsed.budgets) state.budgets = parsed.budgets;
+        if(parsed.goals) state.goals = parsed.goals;
+        if(parsed.categories) state.categories = parsed.categories;
+        if(parsed.recurring) state.recurring = parsed.recurring;
+
+        saveData();
+        saveMeta();
+        populateCategoryFilter();
+        renderAll();
+        closeSettingsModal();
+        showToast("Database sukses dipulihkan dari backup! 📂");
+      } catch(err){ showToast("Format file json rusak atau tidak valid"); }
+    };
+    reader.readAsText(file);
+  }
+
+  function renderCharts(){
+    const isLight = loadTheme() === 'light';
+    const textTheme = isLight ? '#1B2026' : '#E8EDF2';
+    const gridTheme = isLight ? '#DEDACE' : '#232C38';
+
+    if(typeof Chart === 'undefined') return;
+
+    Chart.defaults.color = textTheme;
+    Chart.defaults.font.family = "'Inter', sans-serif";
+
+    renderTrendChart(gridTheme);
+    renderCategoryChart();
+    renderCompareChart(gridTheme);
+  }
+
+  function renderTrendChart(gridColor){
+    const ctx = document.getElementById('trendChart');
+    if(!ctx) return;
+
+    if(window.myTrendChart && typeof window.myTrendChart.destroy === 'function'){
+      window.myTrendChart.destroy();
+    }
+
+    const cy = currentView.getFullYear();
+    const cm = currentView.getMonth();
+    const daysInMonth = new Date(cy, cm + 1, 0).getDate();
+
     const labels = [];
-    const incData = Array(daysCount).fill(0);
-    const expData = Array(daysCount).fill(0);
-    
-    for(let i=1; i<=daysCount; i++) labels.push(String(i));
+    const incData = Array(daysInMonth).fill(0);
+    const expData = Array(daysInMonth).fill(0);
 
-    txs.forEach(t => {
+    for(let i=1; i<=daysInMonth; i++) labels.push(i.toString());
+
+    txInCurrentMonth().forEach(t => {
       const d = new Date(t.date).getDate();
-      if(d >= 1 && d <= daysCount){
+      if(d >= 1 && d <= daysInMonth){
         if(t.type === 'income') incData[d-1] += t.amount;
-        else expData
+        else expData[d-1] += t.amount;
+      }
+    });
+
+    window.myTrendChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label:'Pemasukan', data:incData, borderColor:'#34D399', backgroundColor:'rgba(52,211,153,0.05)', tension:0.2, borderWidth:2.5, pointRadius:2 },
+          { label:'Pengeluaran', data:expData, borderColor:'#FB7185', backgroundColor:'rgba(251,113,133,0.05)', tension:0.2, borderWidth:2.5, pointRadius:2 }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display:false } },
+        scales: {
+          x: { grid: { color:gridColor, drawBorder:false }, ticks: { font:{ size:10 } } },
+          y: { grid: { color:gridColor, drawBorder:false }, ticks: { font:{ size:10 }, callback: v => v >= 1000000 ? (v/1000000)+'M' : v >= 1000 ? (v/1000)+'rb' : v } }
+        }
+      }
+    });
+  }
+
+  function renderCategoryChart(){
+    const ctx = document.getElementById('categoryChart');
+    const legendContainer = document.getElementById('categoryLegend');
+    if(!ctx || !legendContainer) return;
+
+    if(window.myCatChart && typeof window.myCatChart.destroy === 'function'){
+      window.myCatChart.destroy();
+    }
+    legendContainer.innerHTML = '';
+
+    const summary = getCategorySummary(txInCurrentMonth());
+    const labels = Object.keys(summary);
+    const data = Object.values(summary);
+    const colors = labels.map(name => catColor(name));
+
+    if(labels.length === 0){
+      legendContainer.innerHTML = `<div class="legend-empty">Belum ada grafik pengeluaran di bulan ini.</div>`;
+      ctx.style.display = 'none';
+      return;
+    }
+    ctx.style.display = 'block';
+
+    window.myCatChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels,
+        datasets: [{ data, backgroundColor:colors, borderStrokeWidth:0, borderWidth:0, hoverOffset:4 }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display:false } },
+        cutout: '72%'
+      }
+    });
+
+    labels.forEach((name, idx) => {
+      const val = data[idx];
+      const col = colors[idx];
+      const row = document.createElement('div');
+      row.className = 'legend-row';
+      row.innerHTML = `
+        <span class="legend-dot" style="background:${col}"></span>
+        <span class="legend-name">${name}</span>
+        <span class="legend-val">${formatRp(val)}</span>
+      `;
+      legendContainer.appendChild(row);
+    });
+  }
+
+  function renderCompareChart(gridColor){
+    const ctx = document.getElementById('compareChart');
+    if(!ctx) return;
+
+    if(window.myCompareChart && typeof window.myCompareChart.destroy === 'function'){
+      window.myCompareChart.destroy();
+    }
+
+    const labels = [];
+    const incData = [];
+    const expData = [];
+
+    const mNamesShort = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
+    const tempDate = new Date(currentView);
+
+    for(let i=5; i>=0; i--){
+      const d = new Date(tempDate.getFullYear(), tempDate.getMonth() - i, 1);
+      labels.push(`${mNamesShort[d.getMonth()]} ${d.getFullYear().toString().substr(-2)}`);
+      
+      let mInc = 0, mExp = 0;
+      state.transactions.forEach(t => {
+        const txD = new Date(t.date);
+        if(txD.getFullYear() === d.getFullYear() && txD.getMonth() === d.getMonth()){
+          if(t.type === 'income') mInc += t.amount;
+          else mExp += t.amount;
+        }
+      });
+      incData.push(mInc);
+      expData.push(mExp);
+    }
+
+    window.myCompareChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label:'Pemasukan', data:incData, backgroundColor:'#34D399', borderRadius:4 },
+          { label:'Pengeluaran', data:expData, backgroundColor:'#FB7185', borderRadius:4 }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display:false } },
+        scales: {
+          x: { grid: { display:false } },
+          y: { grid: { color:gridColor, drawBorder:false }, ticks: { font:{ size:10 }, callback: v => v >= 1000000 ? (v/1000000)+'M' : v >= 1000 ? (v/1000)+'rb' : v } }
+        }
+      }
+    });
+  }
+
+  function wireEvents(){
+    document.getElementById('prevMonth').addEventListener('click', () => { changeMonth(-1); });
+    document.getElementById('nextMonth').addEventListener('click', () => { changeMonth(1); });
+
+    document.getElementById('themeToggleBtn').addEventListener('click', toggleTheme);
+    document.getElementById('settingsBtn').addEventListener('click', openSettingsModal);
+    document.getElementById('closeSettingsModal').addEventListener('click', closeSettingsModal);
+
+    document.getElementById('addTxBtn').addEventListener('click', () => openTxModal());
+    document.getElementById('closeTxModal').addEventListener('click', closeTxModal);
+    document.getElementById('cancelTxBtn').addEventListener('click', closeTxModal);
+    document.getElementById('saveTxBtn').addEventListener('click', saveTransaction);
+    document.getElementById('typeIncomeBtn').addEventListener('click', () => setTxType('income'));
+    document.getElementById('typeExpenseBtn').addEventListener('click', () => setTxType('expense'));
+
+    document.getElementById('editBudgetsBtn').addEventListener('click', openBudgetModal);
+    document.getElementById('closeBudgetModal').addEventListener('click', closeBudgetModal);
+    document.getElementById('cancelBudgetBtn').addEventListener('click', closeBudgetModal);
+    document.getElementById('saveBudgetBtn').addEventListener('click', saveBudgets);
+
+    document.getElementById('addGoalBtn').addEventListener('click', openGoalModal);
+    document.getElementById('closeGoalModal').addEventListener('click', closeGoalModal);
+    document.getElementById('cancelGoalBtn').addEventListener('click', closeGoalModal);
+    document.getElementById('saveGoalBtn').addEventListener('click', saveGoal);
+
+    document.getElementById('closeFundsModal').addEventListener('click', closeFundsModal);
+    document.getElementById('cancelFundsBtn').addEventListener('click', closeFundsModal);
+    document.getElementById('saveFundsBtn').addEventListener('click', saveFunds);
+
+    document.getElementById('openCategoryModalBtn').addEventListener('click', openCategoryModal);
+    document.getElementById('closeCategoryModal').addEventListener('click', closeCategoryModal);
+    document.getElementById('closeCategoryModalBtn2').addEventListener('click', closeCategoryModal);
+    document.getElementById('catTypeExpenseBtn').addEventListener('click', () => setCategoryModalType('expense'));
+    document.getElementById('catTypeIncomeBtn').addEventListener('click', () => setCategoryModalType('income'));
+    document.getElementById('addCatBtn').addEventListener('click', addCustomCategory);
+
+    document.getElementById('openRecurringModalBtn').addEventListener('click', openRecurringModal);
+    document.getElementById('closeRecurringModal').addEventListener('click', closeRecurringModal);
+    document.getElementById('closeRecurringModalBtn2').addEventListener('click', closeRecurringModal);
+
+    document.getElementById('openResetModalBtn').addEventListener('click', () => {
+      const mNames = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+      document.getElementById('resetMonthName').textContent = mNames[currentView.getMonth()];
+      document.getElementById('resetModal').classList.remove('hidden');
+    });
+    document.getElementById('closeResetModal').addEventListener('click', () => document.getElementById('resetModal').classList.add('hidden'));
+    document.getElementById('cancelResetBtn').addEventListener('click', () => document.getElementById('resetModal').classList.add('hidden'));
+    document.getElementById('confirmResetMonthBtn').addEventListener('click', resetCurrentMonth);
+    document.getElementById('confirmResetAllBtn').addEventListener('click', resetAllData);
+
+    document.getElementById('exportDataBtn').addEventListener('click', exportData);
+    document.getElementById('importDataBtn').addEventListener('click', () => document.getElementById('importFileInput').click());
+    document.getElementById('importFileInput').addEventListener('change', importData);
+
+    document.getElementById('searchTx').addEventListener('input', () => renderTransactionsTable(txInCurrentMonth()));
+    document.getElementById('filterType').addEventListener('change', () => renderTransactionsTable(txInCurrentMonth()));
+    document.getElementById('filterCategory').addEventListener('change', () => renderTransactionsTable(txInCurrentMonth()));
+
+    [['txModal',closeTxModal], ['budgetModal',closeBudgetModal], ['goalModal',closeGoalModal], ['fundsModal',closeFundsModal],
+     ['settingsModal',closeSettingsModal], ['categoryModal',closeCategoryModal], ['recurringModal',closeRecurringModal],
+     ['resetModal', ()=>document.getElementById('resetModal').classList.add('hidden')]].forEach(([id, closer])=>{
+      document.getElementById(id).addEventListener('click', (e)=>{ if(e.target.id === id) closer(); });
+    });
+
+    document.addEventListener('keydown', (e)=>{
+      if(e.key === 'Escape'){
+        closeTxModal(); closeBudgetModal(); closeGoalModal(); closeFundsModal(); closeSettingsModal(); closeCategoryModal(); closeRecurringModal();
+        document.getElementById('resetModal').classList.add('hidden');
+      }
+    });
+  }
+
+  async function init(){
+    applyTheme(loadTheme());
+    wireEvents();
+    setTxType('expense');
+
+    await loadData();
+    const seeded = await loadMeta();
+    if(!seeded && state.transactions.length === 0 && state.goals.length === 0){
+      seedSampleData();
+      await saveData();
+    }
+    await saveMeta();
+    populateCategoryFilter();
+    renderAll();
+  }
+
+  init();
+})();
+</script>
+
+</body>
+</html>
