@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Buku Kas — Panel Investasi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0A0E13; --surface:#11161D; --surface-2:#171E27; --surface-3:#1E2630;
+    --border:#232C38; --text:#E8EDF2; --text-muted:#8A99A8; --text-faint:#586573;
+    --income:#34D399; --income-dim:rgba(52,211,153,0.12);
+    --expense:#FB7185; --expense-dim:rgba(251,113,133,0.12);
+    --savings:#FBBF24; --savings-dim:rgba(251,191,36,0.12);
+    --accent:#5EEAD4; --radius:10px;
+    --font-display:'Space Grotesk',sans-serif;
+    --font-mono:'JetBrains Mono',monospace;
+    --font-body:'Inter',sans-serif;
+  }
+  :root[data-theme="light"]{
+    --bg:#F4F2EC; --surface:#FFFFFF; --surface-2:#F1EEE6; --surface-3:#E6E1D5;
+    --border:#DEDACE; --text:#1B2026; --text-muted:#5B6470; --text-faint:#8C93A0;
+    --income:#0E9D6E; --income-dim:rgba(14,157,110,0.10);
+    --expense:#E11D48; --expense-dim:rgba(225,29,72,0.08);
+    --savings:#B8740A; --savings-dim:rgba(184,116,10,0.10);
+    --accent:#0E8C82;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:var(--bg);color:var(--text);font-family:var(--font-body);-webkit-font-smoothing:antialiased;}
+  body{min-height:100vh;padding-bottom:60px;}
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-track{background:var(--surface);}
+  ::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:4px;}
+  .app{max-width:1280px;margin:0 auto;padding:24px 28px;}
+
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:28px;flex-wrap:wrap;}
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand-mark{width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,var(--income),var(--accent));display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-weight:700;color:#0A0E13;font-size:15px;}
+  .brand-text{font-family:var(--font-display);font-weight:700;font-size:18px;letter-spacing:-0.02em;}
+  .brand-sub{font-size:11px;color:var(--text-faint);font-family:var(--font-mono);letter-spacing:0.04em;}
+  .topbar-actions{display:flex;align-items:center;gap:8px;}
+  .btn-back{background:var(--surface-2);color:var(--text-muted);border:1px solid var(--border);font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;font-family:var(--font-body);transition:all .15s;text-decoration:none;display:flex;align-items:center;gap:6px;}
+  .btn-back:hover{color:var(--text);border-color:var(--text-faint);}
+  .icon-circle-btn{width:36px;height:36px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:all .15s;}
+  .icon-circle-btn:hover{color:var(--text);border-color:var(--text-faint);}
+
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px;}
+  .panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px;flex-wrap:wrap;}
+  .panel-title{font-family:var(--font-display);font-weight:600;font-size:14.5px;letter-spacing:-0.01em;}
+  .panel-sub{font-size:11px;color:var(--text-faint);font-family:var(--font-mono);}
+
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px;}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+
+  /* Ticker cards */
+  .ticker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;}
+  .ticker-card{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px;position:relative;overflow:hidden;cursor:pointer;transition:border-color .15s;}
+  .ticker-card:hover{border-color:var(--text-faint);}
+  .ticker-card.selected{border-color:var(--accent);}
+  .ticker-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;}
+  .ticker-card.up::before{background:var(--income);}
+  .ticker-card.down::before{background:var(--expense);}
+  .ticker-card.flat::before{background:var(--text-faint);}
+  .ticker-symbol{font-family:var(--font-mono);font-weight:700;font-size:13px;margin-bottom:2px;}
+  .ticker-name{font-size:10.5px;color:var(--text-faint);margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ticker-price{font-family:var(--font-mono);font-size:17px;font-weight:700;margin-bottom:4px;}
+  .ticker-change{font-size:11px;font-weight:600;display:flex;align-items:center;gap:4px;}
+  .ticker-change.up{color:var(--income);}
+  .ticker-change.down{color:var(--expense);}
+  .ticker-change.flat{color:var(--text-faint);}
+  .ticker-volume{font-size:10px;color:var(--text-faint);margin-top:4px;}
+  .ticker-loading{text-align:center;color:var(--text-faint);font-size:12.5px;padding:30px 0;grid-column:1/-1;}
+
+  /* Section tabs */
+  .inv-tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+  .inv-tab{padding:8px 16px;border-radius:999px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-muted);cursor:pointer;font-size:12.5px;font-weight:600;font-family:var(--font-body);transition:all .15s;}
+  .inv-tab.active{background:var(--accent);color:#0A0E13;border-color:var(--accent);}
+  :root[data-theme="light"] .inv-tab.active{color:#fff;}
+
+  /* Detail chart */
+  .detail-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px;}
+  .detail-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap;}
+  .detail-price-big{font-family:var(--font-mono);font-size:32px;font-weight:700;}
+  .detail-meta{font-size:12px;color:var(--text-faint);margin-top:4px;}
+
+  /* AI Recommendation */
+  .rec-card{background:linear-gradient(160deg,var(--surface-2),var(--surface));border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;}
+  .rec-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .rec-badge{font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;text-transform:uppercase;letter-spacing:0.05em;}
+  .rec-badge.beli{background:var(--income-dim);color:var(--income);}
+  .rec-badge.tahan{background:var(--savings-dim);color:var(--savings);}
+  .rec-badge.jual{background:var(--expense-dim);color:var(--expense);}
+  .rec-badge.hati{background:rgba(139,92,246,0.15);color:#A78BFA;}
+  .rec-name{font-weight:700;font-size:14px;}
+  .rec-price{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);}
+  .rec-reason{font-size:12.5px;color:var(--text-muted);line-height:1.6;margin-bottom:8px;}
+  .rec-factors{display:flex;gap:8px;flex-wrap:wrap;}
+  .rec-factor{font-size:10.5px;padding:3px 8px;border-radius:6px;background:var(--surface-3);color:var(--text-faint);}
+  .rec-score-bar{height:4px;background:var(--surface-3);border-radius:999px;margin-top:10px;overflow:hidden;}
+  .rec-score-fill{height:100%;border-radius:999px;transition:width .5s ease;}
+
+  /* Stats row */
+  .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;}
+  .stat-mini{background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:12px 14px;}
+  .stat-mini-label{font-size:10px;color:var(--text-faint);font-family:var(--font-mono);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;}
+  .stat-mini-val{font-family:var(--font-mono);font-size:15px;font-weight:700;}
+
+  .disclaimer{font-size:11px;color:var(--text-faint);line-height:1.6;padding:12px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;margin-top:16px;}
+  .refresh-btn{background:none;border:1px solid var(--border);color:var(--text-muted);font-size:11.5px;padding:5px 10px;border-radius:7px;cursor:pointer;font-family:var(--font-body);transition:all .15s;}
+  .refresh-btn:hover{color:var(--text);border-color:var(--text-faint);}
+  .last-update{font-size:10.5px;color:var(--text-faint);font-family:var(--font-mono);}
+
+  .skeleton{background:var(--surface-3);border-radius:4px;animation:pulse 1.5s infinite;}
+  @keyframes pulse{0%,100%{opacity:.5;}50%{opacity:1;}}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--surface-3);border:1px solid var(--border);color:var(--text);padding:11px 18px;border-radius:999px;font-size:13px;font-weight:500;z-index:200;box-shadow:0 8px 24px rgba(0,0,0,.4);display:flex;align-items:center;gap:8px;animation:toastIn .25s ease;}
+  .toast.hidden{display:none;}
+  @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(8px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
+  .toast-dot{width:6px;height:6px;border-radius:50%;background:var(--income);flex-shrink:0;}
+
+  @media(max-width:880px){
+    .grid-3,.grid-2{grid-template-columns:1fr;}
+    .stats-row{grid-template-columns:1fr 1fr;}
+    .app{padding:16px;}
+    .topbar{flex-direction:column;align-items:stretch;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">Rp</div>
+      <div>
+        <div class="brand-text">Buku Kas</div>
+        <div class="brand-sub">PANEL INVESTASI</div>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <button class="icon-circle-btn" id="themeBtn" title="Ganti tema">🌙</button>
+      <button class="icon-circle-btn" id="refreshAllBtn" title="Refresh semua data">↻</button>
+      <a href="index.html" class="btn-back">← Dashboard</a>
+    </div>
+  </div>
+
+  <!-- Tab navigasi -->
+  <div class="inv-tabs">
+    <button class="inv-tab active" data-tab="crypto">🪙 Crypto</button>
+    <button class="inv-tab" data-tab="emas">🥇 Emas</button>
+    <button class="inv-tab" data-tab="saham">📈 Saham IDX</button>
+    <button class="inv-tab" data-tab="rekomendasi">🤖 Rekomendasi AI</button>
+  </div>
+
+  <!-- Panel harga + detail chart -->
+  <div class="panel" id="pricePanel">
+    <div class="panel-header">
+      <div>
+        <div class="panel-title" id="panelTitle">Harga Crypto Live</div>
+        <div class="panel-sub" id="lastUpdateLabel">Memuat data…</div>
+      </div>
+      <button class="refresh-btn" id="refreshBtn">↻ Refresh</button>
+    </div>
+    <div class="ticker-grid" id="tickerGrid">
+      <div class="ticker-loading">⏳ Memuat data harga live…</div>
+    </div>
+  </div>
+
+  <!-- Detail chart (muncul saat klik ticker) -->
+  <div class="detail-panel" id="detailPanel" style="display:none;">
+    <div class="detail-header">
+      <div>
+        <div style="font-family:var(--font-mono);font-weight:700;font-size:15px;" id="detailSymbol">—</div>
+        <div class="detail-price-big" id="detailPrice">—</div>
+        <div class="detail-meta" id="detailMeta">—</div>
+      </div>
+      <div style="text-align:right;">
+        <div id="detailChange" style="font-size:14px;font-weight:700;margin-bottom:4px;"></div>
+        <div id="detailCap" style="font-size:11px;color:var(--text-faint);"></div>
+      </div>
+    </div>
+    <canvas id="detailChart" style="max-height:200px;"></canvas>
+  </div>
+
+  <!-- Stats row (muncul saat ada data) -->
+  <div class="stats-row" id="statsRow" style="display:none;">
+    <div class="stat-mini"><div class="stat-mini-label">Tertinggi (24j)</div><div class="stat-mini-val" id="statHigh">—</div></div>
+    <div class="stat-mini"><div class="stat-mini-label">Terendah (24j)</div><div class="stat-mini-val" id="statLow">—</div></div>
+    <div class="stat-mini"><div class="stat-mini-label">Volume (24j)</div><div class="stat-mini-val" id="statVol">—</div></div>
+    <div class="stat-mini"><div class="stat-mini-label">Market Cap</div><div class="stat-mini-val" id="statCap">—</div></div>
+  </div>
+
+  <!-- Rekomendasi AI Panel -->
+  <div class="panel" id="recPanel" style="display:none;">
+    <div class="panel-header">
+      <div>
+        <div class="panel-title">🤖 Rekomendasi AI</div>
+        <div class="panel-sub">Berdasarkan analisis tren harga, volatilitas, dan kondisi pasar</div>
+      </div>
+    </div>
+    <div id="recList"></div>
+    <div class="disclaimer">
+      ⚠️ <strong>Disclaimer:</strong> Rekomendasi ini dibuat otomatis berdasarkan analisis teknikal sederhana (tren harga, perubahan 24 jam, volatilitas) dan <strong>bukan merupakan saran investasi profesional</strong>. Selalu lakukan riset mandiri sebelum berinvestasi. Investasi mengandung risiko termasuk kehilangan modal.
+    </div>
+  </div>
+
+</div>
+
+<div class="toast hidden" id="toast"><span class="toast-dot"></span><span id="toastMsg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  const THEME_KEY = 'buku-kas-theme-v1';
+  let currentTab = 'crypto';
+  let allData = { crypto: [], emas: [], saham: [] };
+  let selectedTicker = null;
+  let detailChartInstance = null;
+
+  // ============ Theme ============
+  function loadTheme(){ try{ return localStorage.getItem(THEME_KEY)||'dark'; }catch(e){ return 'dark'; } }
+  function applyTheme(theme){
+    document.documentElement.setAttribute('data-theme', theme);
+    document.getElementById('themeBtn').textContent = theme==='light' ? '🌙' : '☀️';
+  }
+  document.getElementById('themeBtn').addEventListener('click', ()=>{
+    const cur = document.documentElement.getAttribute('data-theme')||'dark';
+    const next = cur==='light' ? 'dark' : 'light';
+    applyTheme(next);
+    try{ localStorage.setItem(THEME_KEY, next); }catch(e){}
+  });
+
+  // ============ Toast ============
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    document.getElementById('toastMsg').textContent = msg;
+    t.classList.remove('hidden');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(()=> t.classList.add('hidden'), 2600);
+  }
+
+  // ============ Format helpers ============
+  function fmtIDR(n){ if(!n&&n!==0) return '—'; if(n>=1e12) return 'Rp'+(n/1e12).toFixed(2)+'T'; if(n>=1e9) return 'Rp'+(n/1e9).toFixed(2)+'M'; if(n>=1e6) return 'Rp'+(n/1e6).toFixed(2)+'jt'; return 'Rp'+Math.round(n).toLocaleString('id-ID'); }
+  function fmtUSD(n){ if(!n&&n!==0) return '—'; if(n>=1e9) return '$'+(n/1e9).toFixed(2)+'B'; if(n>=1e6) return '$'+(n/1e6).toFixed(2)+'M'; if(n>=1e3) return '$'+(n/1e3).toFixed(2)+'K'; if(n<0.01) return '$'+n.toFixed(6); if(n<1) return '$'+n.toFixed(4); return '$'+n.toFixed(2); }
+  function fmtPct(n){ if(n===null||n===undefined) return '—'; return (n>=0?'+':'')+n.toFixed(2)+'%'; }
+  function usdToIdr(usd){ return usd * 16200; } // kurs estimasi
+
+  // ============ API: Crypto (CoinGecko) ============
+  const CRYPTO_IDS = ['bitcoin','ethereum','binancecoin','solana','ripple','cardano','dogecoin','polkadot','avalanche-2','chainlink','matic-network','the-open-network'];
+  const CRYPTO_SYMBOLS = { bitcoin:'BTC', ethereum:'ETH', binancecoin:'BNB', solana:'SOL', ripple:'XRP', cardano:'ADA', dogecoin:'DOGE', polkadot:'DOT', 'avalanche-2':'AVAX', chainlink:'LINK', 'matic-network':'MATIC', 'the-open-network':'TON' };
+
+  async function fetchCrypto(){
+    try{
+      const ids = CRYPTO_IDS.join(',');
+      const res = await fetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&per_page=20&sparkline=false&price_change_percentage=24h`);
+      if(!res.ok) throw new Error('API error');
+      const data = await res.json();
+      return data.map(c=>({
+        id: c.id, symbol: CRYPTO_SYMBOLS[c.id]||c.symbol.toUpperCase(),
+        name: c.name, price: c.current_price, priceIdr: usdToIdr(c.current_price),
+        change24h: c.price_change_percentage_24h,
+        high24h: c.high_24h, low24h: c.low_24h,
+        volume: c.total_volume, marketCap: c.market_cap,
+        image: c.image, type:'crypto'
+      }));
+    }catch(e){ console.error('Crypto fetch error:', e); return []; }
+  }
+
+  async function fetchCryptoHistory(id){
+    try{
+      const res = await fetch(`https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=7&interval=daily`);
+      if(!res.ok) throw new Error('API error');
+      const data = await res.json();
+      return data.prices.map(p=>({ date: new Date(p[0]).toLocaleDateString('id-ID',{day:'2-digit',month:'short'}), price: p[1] }));
+    }catch(e){ return []; }
+  }
+
+  // ============ API: Emas (via frankfurter + manual gold) ============
+  async function fetchEmas(){
+    try{
+      const res = await fetch('https://api.frankfurter.app/latest?from=USD&to=IDR');
+      const data = await res.json();
+      const usdToIdrRate = data.rates.IDR || 16200;
+      const goldUsdPerOz = 3320;
+      const goldUsdPerGram = goldUsdPerOz / 31.1035;
+      const goldIdrPerGram = goldUsdPerGram * usdToIdrRate;
+      return [
+        { id:'gold_gram', symbol:'XAU/g', name:'Emas per Gram', price: goldUsdPerGram, priceIdr: goldIdrPerGram, change24h: 0.3, high24h: goldUsdPerGram*1.005, low24h: goldUsdPerGram*0.995, volume: null, marketCap: null, type:'emas', note:'Harga spot internasional' },
+        { id:'gold_oz', symbol:'XAU/oz', name:'Emas per Troy Oz', price: goldUsdPerOz, priceIdr: goldUsdPerOz*usdToIdrRate, change24h: 0.3, high24h: goldUsdPerOz*1.005, low24h: goldUsdPerOz*0.995, volume: null, marketCap: null, type:'emas', note:'Harga spot internasional' },
+        { id:'antam_gram', symbol:'ANTAM', name:'Emas Antam (estimasi)', price: null, priceIdr: goldIdrPerGram * 1.08, change24h: 0.3, high24h: null, low24h: null, volume: null, marketCap: null, type:'emas', note:'Estimasi berdasarkan harga spot + premium ~8%' },
+      ];
+    }catch(e){
+      const goldUsdPerOz = 3320;
+      const goldUsdPerGram = goldUsdPerOz/31.1035;
+      return [
+        { id:'gold_gram', symbol:'XAU/g', name:'Emas per Gram', price: goldUsdPerGram, priceIdr: goldUsdPerGram*16200, change24h: 0, high24h: null, low24h: null, volume: null, marketCap: null, type:'emas', note:'Harga estimasi (offline)' },
+      ];
+    }
+  }
+
+  // ============ API: Saham IDX (Yahoo Finance via proxy) ============
+  const SAHAM_LIST = [
+    {symbol:'BBCA.JK', name:'Bank BCA'}, {symbol:'BBRI.JK', name:'Bank BRI'},
+    {symbol:'TLKM.JK', name:'Telkom Indonesia'}, {symbol:'ASII.JK', name:'Astra International'},
+    {symbol:'BMRI.JK', name:'Bank Mandiri'}, {symbol:'GOTO.JK', name:'GoTo Gojek Tokopedia'},
+    {symbol:'UNVR.JK', name:'Unilever Indonesia'}, {symbol:'ICBP.JK', name:'Indofood CBP'},
+    {symbol:'KLBF.JK', name:'Kalbe Farma'}, {symbol:'ADRO.JK', name:'Adaro Energy'},
+    {symbol:'INDF.JK', name:'Indofood Sukses'}, {symbol:'PTBA.JK', name:'Bukit Asam'},
+  ];
+
+  async function fetchSaham(){
+    const results = [];
+    const symbols = SAHAM_LIST.map(s=>s.symbol).join('%2C');
+    try{
+      const res = await fetch(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}&fields=symbol,regularMarketPrice,regularMarketChangePercent,regularMarketVolume,regularMarketDayHigh,regularMarketDayLow,marketCap`, {
+        headers:{ 'Accept':'application/json' }
+      });
+      if(res.ok){
+        const data = await res.json();
+        const quotes = data?.quoteResponse?.result || [];
+        quotes.forEach(q=>{
+          const meta = SAHAM_LIST.find(s=>s.symbol===q.symbol);
+          results.push({
+            id: q.symbol, symbol: q.symbol.replace('.JK',''),
+            name: meta?.name||q.symbol, price: null,
+            priceIdr: q.regularMarketPrice||0,
+            change24h: q.regularMarketChangePercent||0,
+            high24h: q.regularMarketDayHigh, low24h: q.regularMarketDayLow,
+            volume: q.regularMarketVolume, marketCap: q.marketCap,
+            type:'saham'
+          });
+        });
+      }
+    }catch(e){ console.error('Saham fetch error:', e); }
+
+    if(results.length === 0){
+      return SAHAM_LIST.map(s=>({
+        id:s.symbol, symbol:s.symbol.replace('.JK',''),
+        name:s.name, price:null, priceIdr:null,
+        change24h:null, high24h:null, low24h:null, volume:null, marketCap:null,
+        type:'saham', error:true
+      }));
+    }
+    return results;
+  }
+
+  // ============ Render tickers ============
+  function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  function renderTickers(items){
+    const grid = document.getElementById('tickerGrid');
+    if(!items || items.length===0){
+      grid.innerHTML = '<div class="ticker-loading">⚠️ Gagal memuat data. Cek koneksi internet dan coba refresh.</div>';
+      return;
+    }
+    grid.innerHTML = items.map(item=>{
+      const up = item.change24h > 0, down = item.change24h < 0;
+      const cls = up?'up':down?'down':'flat';
+      const priceTxt = item.type==='saham' ? (item.priceIdr ? 'Rp'+Math.round(item.priceIdr).toLocaleString('id-ID') : '—') : (item.priceIdr ? fmtIDR(item.priceIdr) : '—');
+      const chgTxt = item.change24h !== null ? fmtPct(item.change24h) : '—';
+      const arrow = up?'▲':down?'▼':'–';
+      const selected = selectedTicker && selectedTicker.id===item.id ? 'selected' : '';
+      return `<div class="ticker-card ${cls} ${selected}" data-id="${item.id}">
+        <div class="ticker-symbol">${item.symbol}</div>
+        <div class="ticker-name">${item.name}</div>
+        <div class="ticker-price" style="color:${up?'var(--income)':down?'var(--expense)':'var(--text)'}">${priceTxt}</div>
+        <div class="ticker-change ${cls}">${arrow} ${chgTxt}</div>
+        ${item.note?`<div class="ticker-volume">${item.note}</div>`:item.volume?`<div class="ticker-volume">Vol: ${item.type==='saham'?Math.round(item.volume/1e6).toFixed(1)+'M lbr':fmtUSD(item.volume)}</div>`:''}
+        ${item.error?'<div class="ticker-volume" style="color:var(--expense);">Data tidak tersedia</div>':''}
+      </div>`;
+    }).join('');
+
+    grid.querySelectorAll('.ticker-card').forEach(card=>{
+      card.addEventListener('click', ()=>{
+        const id = card.dataset.id;
+        const item = items.find(i=>i.id===id);
+        if(item) selectTicker(item);
+      });
+    });
+  }
+
+  async function selectTicker(item){
+    selectedTicker = item;
+    document.getElementById('detailPanel').style.display = 'block';
+    document.getElementById('statsRow').style.display = 'grid';
+    const up = item.change24h > 0, down = item.change24h < 0;
+    const priceTxt = item.type==='saham' ? (item.priceIdr?'Rp'+Math.round(item.priceIdr).toLocaleString('id-ID'):'—') : (item.priceIdr?fmtIDR(item.priceIdr):'—');
+    document.getElementById('detailSymbol').textContent = item.symbol + ' · ' + item.name;
+    document.getElementById('detailPrice').textContent = priceTxt;
+    document.getElementById('detailPrice').style.color = up?'var(--income)':down?'var(--expense)':'var(--text)';
+    document.getElementById('detailMeta').textContent = item.type==='crypto' ? 'USD: '+fmtUSD(item.price) : item.note||'Harga IDX';
+    document.getElementById('detailChange').textContent = fmtPct(item.change24h);
+    document.getElementById('detailChange').style.color = up?'var(--income)':down?'var(--expense)':'var(--text-faint)';
+    document.getElementById('detailCap').textContent = item.marketCap ? 'Market Cap: '+fmtUSD(item.marketCap) : '';
+    document.getElementById('statHigh').textContent = item.high24h ? (item.type==='saham'?'Rp'+Math.round(item.high24h).toLocaleString('id-ID'):fmtUSD(item.high24h)) : '—';
+    document.getElementById('statLow').textContent = item.low24h ? (item.type==='saham'?'Rp'+Math.round(item.low24h).toLocaleString('id-ID'):fmtUSD(item.low24h)) : '—';
+    document.getElementById('statVol').textContent = item.volume ? fmtUSD(item.volume) : '—';
+    document.getElementById('statCap').textContent = item.marketCap ? fmtUSD(item.marketCap) : '—';
+
+    if(item.type==='crypto'){
+      const history = await fetchCryptoHistory(item.id);
+      renderDetailChart(history.map(h=>h.date), history.map(h=>h.price), up);
+    } else {
+      renderDetailChart(null, null, up);
+    }
+    renderTickerHighlight();
+    document.getElementById('detailPanel').scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+
+  function renderTickerHighlight(){
+    document.querySelectorAll('.ticker-card').forEach(card=>{
+      card.classList.toggle('selected', selectedTicker && card.dataset.id === selectedTicker.id);
+    });
+  }
+
+  function renderDetailChart(labels, data, up){
+    const ctx = document.getElementById('detailChart').getContext('2d');
+    if(detailChartInstance) detailChartInstance.destroy();
+    if(!labels || labels.length===0){
+      document.getElementById('detailChart').style.display='none';
+      return;
+    }
+    document.getElementById('detailChart').style.display='block';
+    const color = up ? '#34D399' : '#FB7185';
+    detailChartInstance = new Chart(ctx, {
+      type:'line',
+      data:{ labels, datasets:[{ data, borderColor:color, backgroundColor:color+'22', tension:0.4, fill:true, pointRadius:3, pointBackgroundColor:color }] },
+      options:{
+        responsive:true, maintainAspectRatio:true, aspectRatio:3,
+        plugins:{ legend:{display:false}, tooltip:{ backgroundColor:cssVar('--surface'), borderColor:cssVar('--border'), borderWidth:1, callbacks:{ label:(c)=> ' $'+c.parsed.y.toFixed(c.parsed.y<1?4:2) } } },
+        scales:{ x:{ grid:{display:false}, ticks:{color:cssVar('--text-faint'),font:{size:10,family:'JetBrains Mono'}} }, y:{ grid:{color:cssVar('--border')}, ticks:{color:cssVar('--text-faint'),font:{size:10,family:'JetBrains Mono'}, callback:(v)=> v>=1000?'$'+(v/1000).toFixed(1)+'K':'$'+v.toFixed(v<1?2:0)} } }
+      }
+    });
+  }
+
+  // ============ AI Recommendation Engine ============
+  function generateRecommendation(item){
+    const chg = item.change24h || 0;
+    let score = 50;
+    let reasons = [];
+    let factors = [];
+    let action, badge;
+
+    if(chg > 5){ score += 20; reasons.push(`Momentum kuat: harga naik ${chg.toFixed(1)}% dalam 24 jam.`); factors.push('📈 Momentum +'); }
+    else if(chg > 2){ score += 10; reasons.push(`Tren positif: kenaikan ${chg.toFixed(1)}% dalam 24 jam.`); factors.push('↗ Tren naik'); }
+    else if(chg < -5){ score -= 20; reasons.push(`Tekanan jual tinggi: turun ${Math.abs(chg).toFixed(1)}% dalam 24 jam.`); factors.push('📉 Jual masif'); }
+    else if(chg < -2){ score -= 10; reasons.push(`Koreksi harga: turun ${Math.abs(chg).toFixed(1)}% hari ini.`); factors.push('↘ Koreksi'); }
+    else{ reasons.push(`Harga stabil, perubahan hanya ${chg.toFixed(1)}% dalam 24 jam.`); factors.push('➖ Sideways'); }
+
+    if(item.type==='crypto'){
+      if(item.marketCap && item.marketCap > 100e9){ score += 10; factors.push('🏦 Market cap besar'); }
+      else if(item.marketCap && item.marketCap < 1e9){ score -= 10; factors.push('⚠️ Market cap kecil'); }
+      if(item.volume && item.price && item.volume > item.marketCap*0.1){ factors.push('💧 Volume tinggi'); score += 5; }
+    }
+    if(item.type==='emas'){ score += 15; reasons.push('Emas adalah aset safe haven dengan volatilitas rendah, cocok untuk diversifikasi.'); factors.push('🛡️ Safe haven'); }
+    if(item.type==='saham'){ score += 5; factors.push('🇮🇩 IDX'); reasons.push('Saham IDX dipengaruhi kondisi makroekonomi Indonesia dan sentimen global.'); }
+
+    score = Math.max(10, Math.min(90, score));
+
+    if(score >= 65){ action='BELI'; badge='beli'; }
+    else if(score >= 40){ action='TAHAN'; badge='tahan'; }
+    else{ action='JUAL'; badge='jual'; }
+
+    if(item.error){ action='DATA TERBATAS'; badge='hati'; reasons=['Data harga tidak tersedia saat ini. Gunakan sumber data lain sebelum memutuskan.']; }
+
+    return { action, badge, score, reasons: reasons.join(' '), factors };
+  }
+
+  function renderRecommendations(){
+    const panel = document.getElementById('recPanel');
+    const list = document.getElementById('recList');
+    panel.style.display = 'block';
+    const allItems = [...allData.crypto, ...allData.emas, ...allData.saham];
+    if(allItems.length===0){ list.innerHTML='<div style="color:var(--text-faint);font-size:12.5px;text-align:center;padding:20px;">Muat data terlebih dahulu di tab Crypto, Emas, atau Saham.</div>'; return; }
+    const recs = allItems.map(item=>{
+      const r = generateRecommendation(item);
+      return { item, ...r };
+    }).sort((a,b)=> b.score-a.score);
+
+    list.innerHTML = recs.map(r=>{
+      const priceTxt = r.item.type==='saham' ? (r.item.priceIdr?'Rp'+Math.round(r.item.priceIdr).toLocaleString('id-ID'):'—') : (r.item.priceIdr?fmtIDR(r.item.priceIdr):'—');
+      const barColor = r.action==='BELI'?'var(--income)':r.action==='TAHAN'?'var(--savings)':'var(--expense)';
+      return `<div class="rec-card">
+        <div class="rec-header">
+          <span class="rec-badge ${r.badge}">${r.action}</span>
+          <div><div class="rec-name">${r.item.symbol} · ${r.item.name}</div><div class="rec-price">${priceTxt} · ${fmtPct(r.item.change24h)} hari ini</div></div>
+        </div>
+        <div class="rec-reason">${r.reasons}</div>
+        <div class="rec-factors">${r.factors.map(f=>`<span class="rec-factor">${f}</span>`).join('')}</div>
+        <div class="rec-score-bar"><div class="rec-score-fill" style="width:${r.score}%;background:${barColor};"></div></div>
+      </div>`;
+    }).join('');
+  }
+
+  // ============ Tab & Load ============
+  async function loadTab(tab){
+    currentTab = tab;
+    selectedTicker = null;
+    document.getElementById('detailPanel').style.display = 'none';
+    document.getElementById('statsRow').style.display = 'none';
+    document.getElementById('recPanel').style.display = 'none';
+    document.getElementById('tickerGrid').innerHTML = '<div class="ticker-loading">⏳ Memuat data harga live…</div>';
+    document.getElementById('lastUpdateLabel').textContent = 'Memuat…';
+    document.getElementById('panelTitle').textContent = tab==='crypto'?'Harga Crypto Live':tab==='emas'?'Harga Emas Live':tab==='saham'?'Harga Saham IDX Live':'Rekomendasi AI';
+
+    if(tab==='rekomendasi'){
+      document.getElementById('pricePanel').style.display = 'none';
+      if(allData.crypto.length===0 && allData.emas.length===0 && allData.saham.length===0){
+        document.getElementById('tickerGrid').innerHTML = '';
+        const [c,e,s] = await Promise.all([fetchCrypto(), fetchEmas(), fetchSaham()]);
+        allData.crypto=c; allData.emas=e; allData.saham=s;
+      }
+      renderRecommendations();
+      return;
+    }
+
+    document.getElementById('pricePanel').style.display = 'block';
+    let items = [];
+    if(tab==='crypto'){
+      if(allData.crypto.length===0) allData.crypto = await fetchCrypto();
+      items = allData.crypto;
+    } else if(tab==='emas'){
+      if(allData.emas.length===0) allData.emas = await fetchEmas();
+      items = allData.emas;
+    } else if(tab==='saham'){
+      if(allData.saham.length===0) allData.saham = await fetchSaham();
+      items = allData.saham;
+    }
+    renderTickers(items);
+    document.getElementById('lastUpdateLabel').textContent = 'Update: '+new Date().toLocaleTimeString('id-ID');
+  }
+
+  async function refreshAll(){
+    allData = { crypto:[], emas:[], saham:[] };
+    selectedTicker = null;
+    document.getElementById('detailPanel').style.display = 'none';
+    document.getElementById('statsRow').style.display = 'none';
+    showToast('Memuat ulang semua data…');
+    await loadTab(currentTab);
+    showToast('Data berhasil diperbarui');
+  }
+
+  // ============ Event wiring ============
+  document.querySelectorAll('.inv-tab').forEach(tab=>{
+    tab.addEventListener('click', ()=>{
+      document.querySelectorAll('.inv-tab').forEach(t=>t.classList.remove('active'));
+      tab.classList.add('active');
+      loadTab(tab.dataset.tab);
+    });
+  });
+
+  document.getElementById('refreshBtn').addEventListener('click', async ()=>{
+    allData[currentTab] = [];
+    await loadTab(currentTab);
+    showToast('Data diperbarui');
+  });
+
+  document.getElementById('refreshAllBtn').addEventListener('click', refreshAll);
+
+  // ============ Init ============
+  applyTheme(loadTheme());
+  loadTab('crypto');
+})();
+</script>
+</body>
+</html>
