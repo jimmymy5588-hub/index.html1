@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Buku Kas — Panel Investasi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0E13; --surface:#11161D; --surface-2:#171E27; --surface-3:#1E2630;
+    --border:#232C38; --text:#E8EDF2; --text-muted:#8A99A8; --text-faint:#586573;
+    --income:#34D399; --income-dim:rgba(52,211,153,0.12);
+    --expense:#FB7185; --expense-dim:rgba(251,113,133,0.12);
+    --savings:#FBBF24; --savings-dim:rgba(251,191,36,0.12);
+    --accent:#5EEAD4; --radius:10px;
+    --font-display:'Space Grotesk',sans-serif;
+    --font-mono:'JetBrains Mono',monospace;
+    --font-body:'Inter',sans-serif;
+  }
+  :root[data-theme="light"]{
+    --bg:#F4F2EC; --surface:#FFFFFF; --surface-2:#F1EEE6; --surface-3:#E6E1D5;
+    --border:#DEDACE; --text:#1B2026; --text-muted:#5B6470; --text-faint:#8C93A0;
+    --income:#0E9D6E; --expense:#E11D48; --savings:#B8740A; --accent:#0E8C82;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:var(--bg);color:var(--text);font-family:var(--font-body);-webkit-font-smoothing:antialiased;}
+  body{min-height:100vh;padding-bottom:60px;}
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-track{background:var(--surface);}
+  ::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:4px;}
+  .app{max-width:1440px;margin:0 auto;padding:24px 28px;}
+
+  /* Topbar */
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px;flex-wrap:wrap;}
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand-mark{width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,var(--income),var(--accent));display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-weight:700;color:#0A0E13;font-size:15px;}
+  .brand-text{font-family:var(--font-display);font-weight:700;font-size:18px;letter-spacing:-0.02em;}
+  .brand-sub{font-size:11px;color:var(--text-faint);font-family:var(--font-mono);letter-spacing:0.04em;}
+  .topbar-right{display:flex;align-items:center;gap:8px;}
+  .btn-back{background:var(--surface-2);color:var(--text-muted);border:1px solid var(--border);font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;font-family:var(--font-body);transition:all .15s;text-decoration:none;display:inline-flex;align-items:center;gap:6px;}
+  .btn-back:hover{color:var(--text);border-color:var(--text-faint);}
+  .icon-circle-btn{width:36px;height:36px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:all .15s;}
+  .icon-circle-btn:hover{color:var(--text);}
+
+  /* Ticker tape wrapper */
+  .tape-wrap{margin-bottom:16px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);}
+
+  /* Tabs */
+  .inv-tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+  .inv-tab{padding:9px 18px;border-radius:999px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-muted);cursor:pointer;font-size:13px;font-weight:600;font-family:var(--font-body);transition:all .15s;}
+  .inv-tab:hover{color:var(--text);}
+  .inv-tab.active{background:var(--accent);color:#0A0E13;border-color:var(--accent);}
+  :root[data-theme="light"] .inv-tab.active{color:#fff;}
+
+  /* Tab content */
+  .tab-content{display:none;}
+  .tab-content.active{display:block;}
+
+  /* Panel */
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px;}
+  .panel-title{font-family:var(--font-display);font-weight:600;font-size:14.5px;letter-spacing:-0.01em;margin-bottom:14px;}
+  .panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px;flex-wrap:wrap;}
+  .panel-sub{font-size:11px;color:var(--text-faint);}
+
+  /* Chart symbol selector */
+  .symbol-pills{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+  .symbol-pill{padding:6px 14px;border-radius:999px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-muted);cursor:pointer;font-size:12px;font-weight:600;font-family:var(--font-mono);transition:all .15s;}
+  .symbol-pill:hover{color:var(--text);}
+  .symbol-pill.active{border-color:var(--accent);color:var(--accent);background:rgba(94,234,212,0.08);}
+
+  /* TradingView widget containers */
+  .tv-widget{border-radius:9px;overflow:hidden;border:1px solid var(--border);}
+  .tv-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+  .tv-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px;}
+
+  /* AI Rec */
+  .rec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;}
+  .rec-card{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:16px;}
+  .rec-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .rec-badge{font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;text-transform:uppercase;letter-spacing:0.05em;}
+  .rec-badge.beli{background:var(--income-dim);color:var(--income);}
+  .rec-badge.tahan{background:var(--savings-dim);color:var(--savings);}
+  .rec-badge.jual{background:var(--expense-dim);color:var(--expense);}
+  .rec-name{font-weight:700;font-size:13.5px;}
+  .rec-type{font-size:10.5px;color:var(--text-faint);margin-top:2px;}
+  .rec-body{font-size:12.5px;color:var(--text-muted);line-height:1.6;margin-bottom:10px;}
+  .rec-factors{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
+  .rec-factor{font-size:10px;padding:3px 7px;border-radius:6px;background:var(--surface-3);color:var(--text-faint);}
+  .score-bar{height:4px;background:var(--surface-3);border-radius:999px;overflow:hidden;}
+  .score-fill{height:100%;border-radius:999px;}
+
+  /* Market overview mini cards */
+  .market-mini{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:16px;}
+  .mini-card{background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:12px 14px;cursor:pointer;transition:border-color .15s;}
+  .mini-card:hover{border-color:var(--text-faint);}
+  .mini-card.active{border-color:var(--accent);}
+  .mini-symbol{font-family:var(--font-mono);font-weight:700;font-size:12px;margin-bottom:2px;}
+  .mini-name{font-size:10px;color:var(--text-faint);margin-bottom:6px;}
+  .mini-price{font-family:var(--font-mono);font-size:14px;font-weight:700;}
+  .mini-chg{font-size:11px;font-weight:600;margin-top:3px;}
+  .mini-chg.up{color:var(--income);}
+  .mini-chg.down{color:var(--expense);}
+
+  .disclaimer{font-size:11px;color:var(--text-faint);line-height:1.6;padding:12px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;margin-top:14px;}
+
+  /* ===== AI Chat ===== */
+  .chat-wrap{display:flex;flex-direction:column;height:620px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+  .chat-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;flex-shrink:0;background:linear-gradient(160deg,var(--surface-2),var(--surface));}
+  .chat-avatar{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#5EEAD4,#34D399);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+  .chat-name{font-weight:700;font-size:14px;font-family:var(--font-display);}
+  .chat-status{font-size:11px;color:var(--income);display:flex;align-items:center;gap:5px;margin-top:2px;}
+  .chat-status::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--income);display:inline-block;}
+  .chat-messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px;}
+  .chat-messages::-webkit-scrollbar{width:6px;}
+  .chat-msg{display:flex;gap:10px;max-width:85%;animation:msgIn .2s ease;}
+  @keyframes msgIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+  .chat-msg.user{align-self:flex-end;flex-direction:row-reverse;}
+  .chat-msg.ai{align-self:flex-start;}
+  .msg-avatar{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;}
+  .msg-avatar.ai-av{background:linear-gradient(135deg,#5EEAD4,#34D399);}
+  .msg-avatar.user-av{background:var(--surface-3);color:var(--text-muted);}
+  .msg-bubble{padding:11px 15px;border-radius:14px;font-size:13.5px;line-height:1.65;}
+  .chat-msg.ai .msg-bubble{background:var(--surface-2);border:1px solid var(--border);border-bottom-left-radius:4px;color:var(--text);}
+  .chat-msg.user .msg-bubble{background:var(--accent);color:#0A0E13;border-bottom-right-radius:4px;font-weight:500;}
+  :root[data-theme="light"] .chat-msg.user .msg-bubble{color:#fff;}
+  .msg-time{font-size:10px;color:var(--text-faint);margin-top:5px;text-align:right;}
+  .chat-msg.ai .msg-time{text-align:left;}
+  .typing-indicator{display:flex;gap:5px;align-items:center;padding:4px 2px;}
+  .typing-dot{width:7px;height:7px;border-radius:50%;background:var(--text-faint);animation:typingBounce 1.2s infinite;}
+  .typing-dot:nth-child(2){animation-delay:.2s;}
+  .typing-dot:nth-child(3){animation-delay:.4s;}
+  @keyframes typingBounce{0%,80%,100%{transform:translateY(0);}40%{transform:translateY(-6px);}}
+  .chat-input-area{padding:14px 16px;border-top:1px solid var(--border);background:var(--surface-2);flex-shrink:0;}
+  .chat-input-row{display:flex;gap:10px;align-items:flex-end;}
+  .chat-input{flex:1;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:12px;padding:11px 14px;font-size:13.5px;font-family:var(--font-body);resize:none;min-height:44px;max-height:120px;line-height:1.5;outline:none;transition:border-color .15s;}
+  .chat-input:focus{border-color:var(--accent);}
+  .chat-input::placeholder{color:var(--text-faint);}
+  .chat-send{width:44px;height:44px;border-radius:12px;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;transition:transform .12s,opacity .12s;}
+  .chat-send:hover{transform:scale(1.05);}
+  .chat-send:disabled{opacity:.4;cursor:default;transform:none;}
+  :root[data-theme="light"] .chat-send{background:var(--accent);}
+  .quick-prompts{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
+  .quick-prompt{font-size:11.5px;padding:5px 11px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted);cursor:pointer;font-family:var(--font-body);transition:all .15s;white-space:nowrap;}
+  .quick-prompt:hover{color:var(--text);border-color:var(--accent);}
+  .chat-disclaimer{font-size:10.5px;color:var(--text-faint);text-align:center;margin-top:8px;line-height:1.5;}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--surface-3);border:1px solid var(--border);color:var(--text);padding:11px 18px;border-radius:999px;font-size:13px;font-weight:500;z-index:200;box-shadow:0 8px 24px rgba(0,0,0,.4);display:flex;align-items:center;gap:8px;animation:toastIn .25s ease;}
+  .toast.hidden{display:none;}
+  @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(8px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
+  .toast-dot{width:6px;height:6px;border-radius:50%;background:var(--income);flex-shrink:0;}
+
+  @media(max-width:900px){
+    .tv-grid,.tv-grid-3{grid-template-columns:1fr;}
+    .app{padding:16px;}
+    .topbar{flex-direction:column;align-items:stretch;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">Rp</div>
+      <div>
+        <div class="brand-text">Buku Kas</div>
+        <div class="brand-sub">PANEL INVESTASI · DATA REAL-TIME</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <button class="icon-circle-btn" id="themeBtn" title="Ganti tema">🌙</button>
+      <a href="index.html" class="btn-back">← Dashboard</a>
+    </div>
+  </div>
+
+  <!-- Ticker Tape berjalan -->
+  <div class="tape-wrap">
+    <div class="tradingview-widget-container">
+      <div class="tradingview-widget-container__widget"></div>
+      <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js" async>
+      {
+        "symbols": [
+          {"proName":"IDX:BBCA","title":"BCA"},
+          {"proName":"IDX:BBRI","title":"BRI"},
+          {"proName":"IDX:TLKM","title":"Telkom"},
+          {"proName":"IDX:BMRI","title":"Mandiri"},
+          {"proName":"IDX:GOTO","title":"GoTo"},
+          {"proName":"IDX:ASII","title":"Astra"},
+          {"proName":"BINANCE:BTCUSDT","title":"Bitcoin"},
+          {"proName":"BINANCE:ETHUSDT","title":"Ethereum"},
+          {"proName":"BINANCE:BNBUSDT","title":"BNB"},
+          {"proName":"BINANCE:SOLUSDT","title":"Solana"},
+          {"proName":"TVC:GOLD","title":"Emas"},
+          {"proName":"FX_IDC:USDIDR","title":"USD/IDR"}
+        ],
+        "showSymbolLogo": true,
+        "isTransparent": true,
+        "displayMode": "adaptive",
+        "colorTheme": "dark",
+        "locale": "id"
+      }
+      </script>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="inv-tabs">
+    <button class="inv-tab active" data-tab="chart">📊 Chart Live</button>
+    <button class="inv-tab" data-tab="saham">📈 Saham IDX</button>
+    <button class="inv-tab" data-tab="crypto">🪙 Crypto</button>
+    <button class="inv-tab" data-tab="emas">🥇 Emas &amp; Forex</button>
+    <button class="inv-tab" data-tab="screener">🔍 Screener</button>
+    <button class="inv-tab" data-tab="rekomendasi">🤖 Rekomendasi AI</button>
+    <button class="inv-tab" data-tab="konsultan">💬 AI Konsultan</button>
+  </div>
+
+  <!-- ===== TAB: CHART LIVE ===== -->
+  <div class="tab-content active" id="tab-chart">
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Chart Interaktif TradingView</div>
+          <div class="panel-sub">Klik simbol di bawah untuk ganti aset · Bisa ganti timeframe & pasang indikator langsung di chart</div>
+        </div>
+      </div>
+      <div class="symbol-pills" id="chartPills">
+        <span class="symbol-pill active" data-symbol="IDX:BBCA">BBCA</span>
+        <span class="symbol-pill" data-symbol="IDX:BBRI">BBRI</span>
+        <span class="symbol-pill" data-symbol="IDX:TLKM">TLKM</span>
+        <span class="symbol-pill" data-symbol="IDX:GOTO">GOTO</span>
+        <span class="symbol-pill" data-symbol="IDX:BMRI">BMRI</span>
+        <span class="symbol-pill" data-symbol="BINANCE:BTCUSDT">BTC</span>
+        <span class="symbol-pill" data-symbol="BINANCE:ETHUSDT">ETH</span>
+        <span class="symbol-pill" data-symbol="BINANCE:BNBUSDT">BNB</span>
+        <span class="symbol-pill" data-symbol="BINANCE:SOLUSDT">SOL</span>
+        <span class="symbol-pill" data-symbol="TVC:GOLD">EMAS</span>
+        <span class="symbol-pill" data-symbol="FX_IDC:USDIDR">USD/IDR</span>
+      </div>
+      <div id="chartContainer" class="tv-widget" style="height:520px;">
+        <div class="tradingview-widget-container" style="height:100%;">
+          <div id="tradingview_chart"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/tv.js" async onload="initMainChart()"></script>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TAB: SAHAM IDX ===== -->
+  <div class="tab-content" id="tab-saham">
+    <div class="tv-grid">
+      <div class="panel">
+        <div class="panel-title">📈 Market Overview — IDX</div>
+        <div class="tv-widget">
+          <div class="tradingview-widget-container">
+            <div class="tradingview-widget-container__widget"></div>
+            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-market-overview.js" async>
+            {
+              "colorTheme": "dark",
+              "dateRange": "12M",
+              "showChart": true,
+              "locale": "id",
+              "width": "100%",
+              "height": "400",
+              "largeChartUrl": "",
+              "isTransparent": true,
+              "showSymbolLogo": true,
+              "showFloatingTooltip": false,
+              "tabs": [
+                {
+                  "title": "Saham IDX",
+                  "symbols": [
+                    {"s":"IDX:BBCA","d":"Bank BCA"},
+                    {"s":"IDX:BBRI","d":"Bank BRI"},
+                    {"s":"IDX:TLKM","d":"Telkom"},
+                    {"s":"IDX:BMRI","d":"Bank Mandiri"},
+                    {"s":"IDX:ASII","d":"Astra International"},
+                    {"s":"IDX:GOTO","d":"GoTo"},
+                    {"s":"IDX:UNVR","d":"Unilever"},
+                    {"s":"IDX:KLBF","d":"Kalbe Farma"},
+                    {"s":"IDX:ICBP","d":"Indofood CBP"},
+                    {"s":"IDX:ADRO","d":"Adaro Energy"},
+                    {"s":"IDX:PTBA","d":"Bukit Asam"},
+                    {"s":"IDX:INDF","d":"Indofood"}
+                  ],
+                  "originalTitle": "Saham IDX"
+                }
+              ]
+            }
+            </script>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">📊 IDX Composite (IHSG)</div>
+        <div class="tv-widget" style="height:400px;" id="ihsgChart"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">🔥 Top Saham IDX — Harga Live</div>
+      <div class="tv-widget">
+        <div class="tradingview-widget-container">
+          <div class="tradingview-widget-container__widget"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-market-quotes.js" async>
+          {
+            "width": "100%",
+            "height": "450",
+            "symbolsGroups": [
+              {
+                "name": "Blue Chip IDX",
+                "originalName": "Blue Chip IDX",
+                "symbols": [
+                  {"name":"IDX:BBCA","displayName":"BCA"},
+                  {"name":"IDX:BBRI","displayName":"BRI"},
+                  {"name":"IDX:TLKM","displayName":"Telkom"},
+                  {"name":"IDX:BMRI","displayName":"Mandiri"},
+                  {"name":"IDX:ASII","displayName":"Astra"},
+                  {"name":"IDX:GOTO","displayName":"GoTo"},
+                  {"name":"IDX:UNVR","displayName":"Unilever"},
+                  {"name":"IDX:KLBF","displayName":"Kalbe"},
+                  {"name":"IDX:ICBP","displayName":"Indofood CBP"},
+                  {"name":"IDX:ADRO","displayName":"Adaro"},
+                  {"name":"IDX:PTBA","displayName":"Bukit Asam"},
+                  {"name":"IDX:INDF","displayName":"Indofood"}
+                ]
+              }
+            ],
+            "showSymbolLogo": true,
+            "isTransparent": true,
+            "colorTheme": "dark",
+            "locale": "id"
+          }
+          </script>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TAB: CRYPTO ===== -->
+  <div class="tab-content" id="tab-crypto">
+    <div class="tv-grid">
+      <div class="panel">
+        <div class="panel-title">🪙 Crypto Market Overview</div>
+        <div class="tv-widget">
+          <div class="tradingview-widget-container">
+            <div class="tradingview-widget-container__widget"></div>
+            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-market-overview.js" async>
+            {
+              "colorTheme": "dark",
+              "dateRange": "12M",
+              "showChart": true,
+              "locale": "id",
+              "width": "100%",
+              "height": "420",
+              "isTransparent": true,
+              "showSymbolLogo": true,
+              "tabs": [
+                {
+                  "title": "Crypto",
+                  "symbols": [
+                    {"s":"BINANCE:BTCUSDT","d":"Bitcoin"},
+                    {"s":"BINANCE:ETHUSDT","d":"Ethereum"},
+                    {"s":"BINANCE:BNBUSDT","d":"BNB"},
+                    {"s":"BINANCE:SOLUSDT","d":"Solana"},
+                    {"s":"BINANCE:XRPUSDT","d":"XRP"},
+                    {"s":"BINANCE:ADAUSDT","d":"Cardano"},
+                    {"s":"BINANCE:DOGEUSDT","d":"Dogecoin"},
+                    {"s":"BINANCE:AVAXUSDT","d":"Avalanche"},
+                    {"s":"BINANCE:DOTUSDT","d":"Polkadot"},
+                    {"s":"BINANCE:MATICUSDT","d":"Polygon"}
+                  ],
+                  "originalTitle": "Crypto"
+                }
+              ]
+            }
+            </script>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">💹 Crypto Harga Live</div>
+        <div class="tv-widget">
+          <div class="tradingview-widget-container">
+            <div class="tradingview-widget-container__widget"></div>
+            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-market-quotes.js" async>
+            {
+              "width": "100%",
+              "height": "420",
+              "symbolsGroups": [
+                {
+                  "name": "Top Crypto",
+                  "symbols": [
+                    {"name":"BINANCE:BTCUSDT","displayName":"Bitcoin"},
+                    {"name":"BINANCE:ETHUSDT","displayName":"Ethereum"},
+                    {"name":"BINANCE:BNBUSDT","displayName":"BNB"},
+                    {"name":"BINANCE:SOLUSDT","displayName":"Solana"},
+                    {"name":"BINANCE:XRPUSDT","displayName":"XRP"},
+                    {"name":"BINANCE:ADAUSDT","displayName":"Cardano"},
+                    {"name":"BINANCE:DOGEUSDT","displayName":"Dogecoin"},
+                    {"name":"BINANCE:AVAXUSDT","displayName":"Avalanche"},
+                    {"name":"BINANCE:DOTUSDT","displayName":"Polkadot"},
+                    {"name":"BINANCE:MATICUSDT","displayName":"Polygon"}
+                  ]
+                }
+              ],
+              "showSymbolLogo": true,
+              "isTransparent": true,
+              "colorTheme": "dark",
+              "locale": "id"
+            }
+            </script>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">📊 Crypto Fear &amp; Greed + Dominance</div>
+      <div class="tv-widget">
+        <div class="tradingview-widget-container">
+          <div class="tradingview-widget-container__widget"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-screener.js" async>
+          {
+            "width": "100%",
+            "height": "400",
+            "defaultColumn": "overview",
+            "screener_type": "crypto_mkt",
+            "displayCurrency": "USD",
+            "colorTheme": "dark",
+            "locale": "id",
+            "isTransparent": true
+          }
+          </script>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TAB: EMAS & FOREX ===== -->
+  <div class="tab-content" id="tab-emas">
+    <div class="tv-grid">
+      <div class="panel">
+        <div class="panel-title">🥇 Harga Emas &amp; Komoditas</div>
+        <div class="tv-widget">
+          <div class="tradingview-widget-container">
+            <div class="tradingview-widget-container__widget"></div>
+            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-market-overview.js" async>
+            {
+              "colorTheme": "dark",
+              "dateRange": "12M",
+              "showChart": true,
+              "locale": "id",
+              "width": "100%",
+              "height": "420",
+              "isTransparent": true,
+              "tabs": [
+                {
+                  "title": "Emas & Komoditas",
+                  "symbols": [
+                    {"s":"TVC:GOLD","d":"Emas (XAU/USD)"},
+                    {"s":"TVC:SILVER","d":"Perak (XAG/USD)"},
+                    {"s":"NYMEX:CL1!","d":"Minyak Mentah"},
+                    {"s":"CBOT:ZC1!","d":"Jagung"},
+                    {"s":"NYMEX:NG1!","d":"Gas Alam"}
+                  ],
+                  "originalTitle": "Komoditas"
+                }
+              ]
+            }
+            </script>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">💱 Forex — Kurs Rupiah</div>
+        <div class="tv-widget">
+          <div class="tradingview-widget-container">
+            <div class="tradingview-widget-container__widget"></div>
+            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-market-quotes.js" async>
+            {
+              "width": "100%",
+              "height": "420",
+              "symbolsGroups": [
+                {
+                  "name": "Kurs Rupiah",
+                  "symbols": [
+                    {"name":"FX_IDC:USDIDR","displayName":"USD/IDR"},
+                    {"name":"FX_IDC:EURIDR","displayName":"EUR/IDR"},
+                    {"name":"FX_IDC:GBPIDR","displayName":"GBP/IDR"},
+                    {"name":"FX_IDC:JPYIDR","displayName":"JPY/IDR"},
+                    {"name":"FX_IDC:SGDIDR","displayName":"SGD/IDR"},
+                    {"name":"FX_IDC:MYRIDR","displayName":"MYR/IDR"},
+                    {"name":"TVC:GOLD","displayName":"Emas XAU/USD"},
+                    {"name":"TVC:SILVER","displayName":"Perak XAG/USD"}
+                  ]
+                }
+              ],
+              "showSymbolLogo": true,
+              "isTransparent": true,
+              "colorTheme": "dark",
+              "locale": "id"
+            }
+            </script>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">📈 Chart Emas (XAU/USD) — TradingView Live</div>
+      <div class="tv-widget" id="goldChartContainer" style="height:450px;"></div>
+    </div>
+  </div>
+
+  <!-- ===== TAB: SCREENER ===== -->
+  <div class="tab-content" id="tab-screener">
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">🔍 Stock Screener — Saham IDX</div>
+          <div class="panel-sub">Filter saham berdasarkan fundamental, teknikal, dan valuasi langsung dari TradingView</div>
+        </div>
+      </div>
+      <div class="tv-widget">
+        <div class="tradingview-widget-container">
+          <div class="tradingview-widget-container__widget"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-screener.js" async>
+          {
+            "width": "100%",
+            "height": "600",
+            "defaultColumn": "overview",
+            "defaultScreen": "most_capitalized",
+            "market": "indonesia",
+            "showToolbar": true,
+            "colorTheme": "dark",
+            "locale": "id",
+            "isTransparent": true
+          }
+          </script>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TAB: REKOMENDASI AI ===== -->
+  <div class="tab-content" id="tab-rekomendasi">
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">🤖 Rekomendasi AI — Analisis Teknikal Otomatis</div>
+          <div class="panel-sub">Berdasarkan sinyal teknikal TradingView (Moving Average, RSI, MACD, Stochastic)</div>
+        </div>
+      </div>
+      <!-- TradingView Technical Analysis widgets -->
+      <div class="tv-grid-3" id="recWidgets">
+        <!-- BTC -->
+        <div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-faint);margin-bottom:8px;">BITCOIN (BTC/USDT)</div>
+          <div class="tv-widget">
+            <div class="tradingview-widget-container">
+              <div class="tradingview-widget-container__widget"></div>
+              <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-technical-analysis.js" async>
+              {"interval":"1W","width":"100%","isTransparent":true,"height":"250","symbol":"BINANCE:BTCUSDT","showIntervalTabs":true,"displayMode":"single","locale":"id","colorTheme":"dark"}
+              </script>
+            </div>
+          </div>
+        </div>
+        <!-- ETH -->
+        <div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-faint);margin-bottom:8px;">ETHEREUM (ETH/USDT)</div>
+          <div class="tv-widget">
+            <div class="tradingview-widget-container">
+              <div class="tradingview-widget-container__widget"></div>
+              <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-technical-analysis.js" async>
+              {"interval":"1W","width":"100%","isTransparent":true,"height":"250","symbol":"BINANCE:ETHUSDT","showIntervalTabs":true,"displayMode":"single","locale":"id","colorTheme":"dark"}
+              </script>
+            </div>
+          </div>
+        </div>
+        <!-- GOLD -->
+        <div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-faint);margin-bottom:8px;">EMAS (XAU/USD)</div>
+          <div class="tv-widget">
+            <div class="tradingview-widget-container">
+              <div class="tradingview-widget-container__widget"></div>
+              <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-technical-analysis.js" async>
+              {"interval":"1W","width":"100%","isTransparent":true,"height":"250","symbol":"TVC:GOLD","showIntervalTabs":true,"displayMode":"single","locale":"id","colorTheme":"dark"}
+              </script>
+            </div>
+          </div>
+        </div>
+        <!-- BBCA -->
+        <div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-faint);margin-bottom:8px;">BANK BCA (BBCA)</div>
+          <div class="tv-widget">
+            <div class="tradingview-widget-container">
+              <div class="tradingview-widget-container__widget"></div>
+              <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-technical-analysis.js" async>
+              {"interval":"1W","width":"100%","isTransparent":true,"height":"250","symbol":"IDX:BBCA","showIntervalTabs":true,"displayMode":"single","locale":"id","colorTheme":"dark"}
+              </script>
+            </div>
+          </div>
+        </div>
+        <!-- BBRI -->
+        <div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-faint);margin-bottom:8px;">BANK BRI (BBRI)</div>
+          <div class="tv-widget">
+            <div class="tradingview-widget-container">
+              <div class="tradingview-widget-container__widget"></div>
+              <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-technical-analysis.js" async>
+              {"interval":"1W","width":"100%","isTransparent":true,"height":"250","symbol":"IDX:BBRI","showIntervalTabs":true,"displayMode":"single","locale":"id","colorTheme":"dark"}
+              </script>
+            </div>
+          </div>
+        </div>
+        <!-- SOL -->
+        <div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-faint);margin-bottom:8px;">SOLANA (SOL/USDT)</div>
+          <div class="tv-widget">
+            <div class="tradingview-widget-container">
+              <div class="tradingview-widget-container__widget"></div>
+              <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-technical-analysis.js" async>
+              {"interval":"1W","width":"100%","isTransparent":true,"height":"250","symbol":"BINANCE:SOLUSDT","showIntervalTabs":true,"displayMode":"single","locale":"id","colorTheme":"dark"}
+              </script>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="disclaimer">
+        ⚠️ <strong>Disclaimer:</strong> Sinyal di atas menggunakan indikator teknikal (Moving Average, RSI, MACD, Stochastic, dll) dari TradingView dan <strong>bukan merupakan saran investasi profesional</strong>. Sinyal BELI/JUAL/NETRAL adalah analisis teknikal otomatis — selalu lakukan riset mandiri (DYOR) sebelum memutuskan investasi. Investasi mengandung risiko termasuk kehilangan seluruh modal.
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TAB: AI KONSULTAN TRADER ===== -->
+  <div class="tab-content" id="tab-konsultan">
+    <div class="panel" style="padding:0;overflow:hidden;">
+      <div class="chat-wrap">
+
+        <!-- Header -->
+        <div class="chat-header">
+          <div class="chat-avatar">🎩</div>
+          <div>
+            <div class="chat-name">Arka — AI Trading Consultant</div>
+            <div class="chat-status">Online · Siap membantu analisis kamu</div>
+          </div>
+        </div>
+
+        <!-- Messages -->
+        <div class="chat-messages" id="chatMessages">
+          <div class="chat-msg ai">
+            <div class="msg-avatar ai-av">🎩</div>
+            <div>
+              <div class="msg-bubble">
+                Halo! Saya <strong>Arka</strong>, konsultan trading profesional kamu. 👋<br><br>
+                Saya bisa bantu kamu dengan:<br>
+                • Analisis teknikal & fundamental saham IDX<br>
+                • Strategi entry & exit posisi<br>
+                • Analisis Bitcoin, Ethereum, dan crypto lainnya<br>
+                • Harga emas & strategi hedging<br>
+                • Manajemen risiko & portfolio<br>
+                • Baca chart & indikator (RSI, MACD, MA, dll)<br><br>
+                Mau mulai dari mana hari ini?
+              </div>
+              <div class="msg-time">Arka · Sekarang</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Input area -->
+        <div class="chat-input-area">
+          <div class="quick-prompts" id="quickPrompts">
+            <button class="quick-prompt">📊 Analisis BBCA sekarang</button>
+            <button class="quick-prompt">₿ Bitcoin bullish atau bearish?</button>
+            <button class="quick-prompt">🥇 Waktu bagus beli emas?</button>
+            <button class="quick-prompt">📉 Cara baca RSI & MACD</button>
+            <button class="quick-prompt">💼 Strategi diversifikasi portfolio</button>
+            <button class="quick-prompt">⚠️ Apa itu stop loss & take profit?</button>
+          </div>
+          <div class="chat-input-row">
+            <textarea class="chat-input" id="chatInput" placeholder="Tanya apa saja tentang trading, saham, crypto, emas…" rows="1"></textarea>
+            <button class="chat-send" id="chatSend" title="Kirim">➤</button>
+          </div>
+          <div class="chat-disclaimer">⚠️ Bukan saran investasi profesional · Selalu DYOR sebelum berinvestasi · Investasi berisiko</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div><!-- .app -->
+
+<div class="toast hidden" id="toast"><span class="toast-dot"></span><span id="toastMsg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  const THEME_KEY = 'buku-kas-theme-v1';
+  let currentSymbol = 'IDX:BBCA';
+  let tvWidget = null;
+
+  // ===== Theme =====
+  function loadTheme(){ try{ return localStorage.getItem(THEME_KEY)||'dark'; }catch(e){ return 'dark'; } }
+  function applyTheme(theme){
+    document.documentElement.setAttribute('data-theme', theme);
+    document.getElementById('themeBtn').textContent = theme==='light'?'🌙':'☀️';
+    if(tvWidget) tvWidget.changeTheme(theme==='light'?'Light':'Dark');
+  }
+  document.getElementById('themeBtn').addEventListener('click', ()=>{
+    const cur = document.documentElement.getAttribute('data-theme')||'dark';
+    applyTheme(cur==='light'?'dark':'light');
+    try{ localStorage.setItem(THEME_KEY, cur==='light'?'dark':'light'); }catch(e){}
+  });
+
+  // ===== Toast =====
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    document.getElementById('toastMsg').textContent = msg;
+    t.classList.remove('hidden');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(()=> t.classList.add('hidden'), 2600);
+  }
+
+  // ===== Main TradingView Advanced Chart =====
+  function initMainChart(){
+    if(typeof TradingView === 'undefined') return;
+    const theme = loadTheme();
+    tvWidget = new TradingView.widget({
+      container_id: 'tradingview_chart',
+      width: '100%',
+      height: 500,
+      symbol: currentSymbol,
+      interval: 'D',
+      timezone: 'Asia/Jakarta',
+      theme: theme==='light' ? 'Light' : 'Dark',
+      style: '1',
+      locale: 'id',
+      toolbar_bg: theme==='light'?'#FFFFFF':'#11161D',
+      enable_publishing: false,
+      allow_symbol_change: true,
+      hide_top_toolbar: false,
+      hide_legend: false,
+      save_image: true,
+      studies: ['MASimple@tv-basicstudies', 'RSI@tv-basicstudies', 'MACD@tv-basicstudies'],
+    });
+  }
+
+  function changeChartSymbol(symbol){
+    currentSymbol = symbol;
+    if(tvWidget && tvWidget.chart){
+      try{ tvWidget.chart().setSymbol(symbol); }
+      catch(e){ initMainChart(); }
+    } else { initMainChart(); }
+    document.querySelectorAll('.symbol-pill').forEach(p=>{ p.classList.toggle('active', p.dataset.symbol===symbol); });
+  }
+
+  document.querySelectorAll('.symbol-pill').forEach(pill=>{
+    pill.addEventListener('click', ()=> changeChartSymbol(pill.dataset.symbol));
+  });
+
+  // ===== IHSG Chart (static embed) =====
+  function initIHSGChart(){
+    const el = document.getElementById('ihsgChart');
+    if(!el) return;
+    el.innerHTML = `
+      <div class="tradingview-widget-container" style="height:100%;">
+        <div class="tradingview-widget-container__widget" style="height:100%;"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+        {"width":"100%","height":"390","symbol":"IDX:COMPOSITE","interval":"D","timezone":"Asia/Jakarta","theme":"dark","style":"1","locale":"id","enable_publishing":false,"allow_symbol_change":false,"isTransparent":true,"hide_top_toolbar":false,"save_image":false}
+        <\/script>
+      </div>`;
+  }
+
+  // ===== Gold Chart =====
+  function initGoldChart(){
+    const el = document.getElementById('goldChartContainer');
+    if(!el) return;
+    el.innerHTML = `
+      <div class="tradingview-widget-container" style="height:100%;">
+        <div class="tradingview-widget-container__widget" style="height:100%;"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+        {"width":"100%","height":"430","symbol":"TVC:GOLD","interval":"D","timezone":"Asia/Jakarta","theme":"dark","style":"1","locale":"id","enable_publishing":false,"allow_symbol_change":false,"isTransparent":true,"studies":["MASimple@tv-basicstudies","RSI@tv-basicstudies"]}
+        <\/script>
+      </div>`;
+  }
+
+  // ===== AI Konsultan Trader =====
+  const chatHistory = [];
+  const SYSTEM_PROMPT = `Kamu adalah Arka, seorang konsultan trading dan investasi profesional berpengalaman 15 tahun di pasar Indonesia dan global. Kamu ahli dalam:
+- Analisis teknikal (candlestick, support/resistance, trendline, RSI, MACD, Bollinger Bands, Moving Average, Fibonacci, Volume)
+- Analisis fundamental saham IDX (BEI), termasuk saham blue chip, lapis dua, dan lapis tiga
+- Pasar crypto (Bitcoin, Ethereum, altcoin) dan analisis on-chain
+- Harga emas, komoditas, dan forex (USD/IDR dan lainnya)
+- Manajemen risiko, position sizing, stop loss, take profit
+- Psikologi trading dan disiplin
+- Regulasi pasar modal Indonesia (OJK, BEI, KSEI)
+- Reksa dana, ETF, obligasi, dan instrumen investasi Indonesia
+
+Gaya komunikasi kamu:
+- Profesional tapi ramah dan mudah dipahami pemula sekalipun
+- Gunakan bahasa Indonesia yang natural
+- Berikan analisis yang terstruktur dan actionable
+- Sertakan angka konkret jika relevan (level support/resistance, target harga, dll)
+- Selalu ingatkan manajemen risiko
+- Jujur jika tidak tahu atau tidak yakin
+- Tambahkan disclaimer singkat kalau memberikan rekomendasi spesifik
+
+PENTING: Kamu BUKAN pengganti financial advisor berlisensi. Selalu ingatkan pengguna untuk DYOR (Do Your Own Research) dan bahwa investasi mengandung risiko.`;
+
+  function timeNow(){
+    return new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+  }
+
+  function appendMessage(role, text, isTyping=false){
+    const messages = document.getElementById('chatMessages');
+    const div = document.createElement('div');
+    div.className = `chat-msg ${role==='user'?'user':'ai'}`;
+    const avatar = role==='user'
+      ? `<div class="msg-avatar user-av">👤</div>`
+      : `<div class="msg-avatar ai-av">🎩</div>`;
+    const bubbleContent = isTyping
+      ? `<div class="typing-indicator"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>`
+      : text.replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\*(.*?)\*/g,'<em>$1</em>');
+    div.innerHTML = `${avatar}<div><div class="msg-bubble">${bubbleContent}</div>${!isTyping?`<div class="msg-time">${role==='user'?'Kamu':'Arka'} · ${timeNow()}</div>`:''}</div>`;
+    if(isTyping) div.id = 'typingMsg';
+    messages.appendChild(div);
+    messages.scrollTop = messages.scrollHeight;
+    return div;
+  }
+
+  function removeTyping(){
+    const t = document.getElementById('typingMsg');
+    if(t) t.remove();
+  }
+
+  async function sendChat(){
+    const input = document.getElementById('chatInput');
+    const sendBtn = document.getElementById('chatSend');
+    const text = input.value.trim();
+    if(!text || sendBtn.disabled) return;
+
+    // Sembunyikan quick prompts setelah pesan pertama
+    document.getElementById('quickPrompts').style.display = 'none';
+
+    appendMessage('user', text);
+    chatHistory.push({ role:'user', content: text });
+
+    input.value = '';
+    input.style.height = 'auto';
+    sendBtn.disabled = true;
+    appendMessage('ai', '', true);
+
+    try{
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 1000,
+          system: SYSTEM_PROMPT,
+          messages: chatHistory
+        })
+      });
+
+      const data = await response.json();
+      removeTyping();
+
+      if(data.content && data.content[0]){
+        const reply = data.content[0].text;
+        chatHistory.push({ role:'assistant', content: reply });
+        appendMessage('ai', reply);
+      } else {
+        appendMessage('ai', 'Maaf, ada gangguan koneksi. Coba lagi ya.');
+      }
+    }catch(err){
+      removeTyping();
+      appendMessage('ai', 'Maaf, tidak bisa terhubung saat ini. Pastikan koneksi internet kamu stabil dan coba lagi.');
+    }
+
+    sendBtn.disabled = false;
+    input.focus();
+  }
+
+  // Auto-resize textarea
+  document.getElementById('chatInput').addEventListener('input', function(){
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+  });
+
+  // Send on Enter (Shift+Enter untuk baris baru)
+  document.getElementById('chatInput').addEventListener('keydown', function(e){
+    if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendChat(); }
+  });
+
+  document.getElementById('chatSend').addEventListener('click', sendChat);
+
+  // Quick prompts
+  document.querySelectorAll('.quick-prompt').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.getElementById('chatInput').value = btn.textContent.replace(/^[^\s]+\s/,'').trim();
+      sendChat();
+    });
+  });
+
+  // ===== Tab switching =====
+  let tabsInited = { chart:false, saham:false, crypto:false, emas:false, screener:false, rekomendasi:false };
+
+  function switchTab(tab){
+    document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+    document.querySelectorAll('.inv-tab').forEach(t=>t.classList.remove('active'));
+    document.getElementById('tab-'+tab).classList.add('active');
+    document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+
+    if(!tabsInited[tab]){
+      tabsInited[tab] = true;
+      if(tab==='saham') setTimeout(initIHSGChart, 200);
+      if(tab==='emas') setTimeout(initGoldChart, 200);
+    }
+  }
+
+  document.querySelectorAll('.inv-tab').forEach(tab=>{
+    tab.addEventListener('click', ()=> switchTab(tab.dataset.tab));
+  });
+
+  // ===== Init =====
+  applyTheme(loadTheme());
+  tabsInited.chart = true;
+})();
+</script>
+</body>
+</html>
